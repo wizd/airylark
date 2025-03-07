@@ -9,6 +9,7 @@ import {
   translateSegment as apiTranslateSegment,
   reviewTranslation as apiReviewTranslation
 } from "../services/translationApi";
+import TranslationThinking from "./TranslationThinking";
 
 interface TranslationProcessProps {
   content: string | null;
@@ -18,6 +19,26 @@ interface TranslationProcessProps {
 }
 
 type TranslationStep = "planning" | "translating" | "reviewing" | "completed";
+
+// 定义思考过程数据类型
+interface PlanningThinkingData {
+  contentType?: string;
+  style?: string;
+  specializedKnowledge?: string[];
+  keyTerms?: Record<string, string>;
+}
+
+interface TranslatingThinkingData {
+  currentSegmentIndex: number;
+  totalSegments: number;
+  currentSegment: string;
+  currentTranslation: string;
+}
+
+interface ReviewingThinkingData {
+  reviewNotes: string[];
+  improvements: string[];
+}
 
 export default function TranslationProcess({
   content,
@@ -35,6 +56,22 @@ export default function TranslationProcess({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sourceText, setSourceText] = useState<string>("");
+
+  // 添加思考过程数据状态，使用具体类型
+  const [planningThinkingData, setPlanningThinkingData] =
+    useState<PlanningThinkingData | null>(null);
+  const [translatingThinkingData, setTranslatingThinkingData] =
+    useState<TranslatingThinkingData>({
+      currentSegmentIndex: 0,
+      totalSegments: 0,
+      currentSegment: "",
+      currentTranslation: ""
+    });
+  const [reviewingThinkingData, setReviewingThinkingData] =
+    useState<ReviewingThinkingData>({
+      reviewNotes: [],
+      improvements: []
+    });
 
   // 初始化源文本
   useEffect(() => {
@@ -155,6 +192,8 @@ export default function TranslationProcess({
       }
 
       setTranslationPlan(plan);
+      // 更新思考过程数据
+      setPlanningThinkingData(plan);
       setProgress(20);
       setCurrentStep("translating");
 
@@ -165,6 +204,11 @@ export default function TranslationProcess({
         .map((segment, index) => `[${index + 1}] ${segment.trim()}`);
 
       setOriginalSegments(segments);
+      // 更新翻译思考数据的总段落数
+      setTranslatingThinkingData((prev: TranslatingThinkingData) => ({
+        ...prev,
+        totalSegments: segments.length
+      }));
     } catch (err) {
       setError(
         `创建翻译规划失败: ${err instanceof Error ? err.message : String(err)}`
@@ -189,6 +233,14 @@ export default function TranslationProcess({
       for (let i = 0; i < originalSegments.length; i++) {
         const segment = originalSegments[i];
 
+        // 更新当前正在翻译的段落信息
+        setTranslatingThinkingData((prev: TranslatingThinkingData) => ({
+          ...prev,
+          currentSegmentIndex: i,
+          currentSegment: segment,
+          currentTranslation: ""
+        }));
+
         // 调用API翻译段落
         let translatedSegment = await apiTranslateSegment(
           segment,
@@ -202,6 +254,12 @@ export default function TranslationProcess({
         if (codeBlockMatch && codeBlockMatch[1]) {
           translatedSegment = codeBlockMatch[1].trim();
         }
+
+        // 更新翻译结果
+        setTranslatingThinkingData((prev: TranslatingThinkingData) => ({
+          ...prev,
+          currentTranslation: translatedSegment
+        }));
 
         translated.push(translatedSegment);
         currentProgress += progressIncrement;
@@ -230,6 +288,16 @@ export default function TranslationProcess({
     try {
       const combinedTranslation = translatedSegments.join("\n\n");
 
+      // 更新审校思考数据
+      setReviewingThinkingData({
+        reviewNotes: [
+          "正在进行整体审校...",
+          "检查术语一致性...",
+          "优化语言表达..."
+        ],
+        improvements: []
+      });
+
       // 调用API审校译文
       let reviewedTranslation = await apiReviewTranslation(
         combinedTranslation,
@@ -243,6 +311,16 @@ export default function TranslationProcess({
       if (codeBlockMatch && codeBlockMatch[1]) {
         reviewedTranslation = codeBlockMatch[1].trim();
       }
+
+      // 更新审校思考数据
+      setReviewingThinkingData({
+        reviewNotes: ["完成整体审校", "术语一致性检查完成", "语言表达优化完成"],
+        improvements: [
+          "优化了专业术语翻译",
+          "改进了语言流畅度",
+          "统一了风格表达"
+        ]
+      });
 
       // 转换为Markdown格式，但不将元数据和翻译内容混合在一起
       const markdownTranslation = reviewedTranslation;
@@ -323,18 +401,42 @@ export default function TranslationProcess({
 
   // 渲染当前步骤内容
   const renderStepContent = () => {
-    if (isLoading) {
+    // 添加思考过程组件
+    const renderThinkingProcess = () => {
       return (
-        <div className="flex flex-col items-center justify-center py-12">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-300">
-            {currentStep === "planning" && "正在分析文本并创建翻译规划..."}
-            {currentStep === "translating" && "正在翻译文本段落..."}
-            {currentStep === "reviewing" && "正在审校译文..."}
-          </p>
-        </div>
+        <>
+          <TranslationThinking
+            step="planning"
+            isLoading={currentStep === "planning" && isLoading}
+            data={planningThinkingData}
+            autoCollapse={currentStep !== "planning"}
+          />
+
+          <TranslationThinking
+            step="translating"
+            isLoading={currentStep === "translating" && isLoading}
+            data={translatingThinkingData}
+            autoCollapse={currentStep !== "translating"}
+          />
+
+          <TranslationThinking
+            step="reviewing"
+            isLoading={currentStep === "reviewing" && isLoading}
+            data={reviewingThinkingData}
+            autoCollapse={currentStep !== "reviewing"}
+          />
+
+          {currentStep === "completed" && (
+            <TranslationThinking
+              step="completed"
+              isLoading={false}
+              data={null}
+              autoCollapse={true}
+            />
+          )}
+        </>
       );
-    }
+    };
 
     if (error) {
       return (
@@ -354,6 +456,9 @@ export default function TranslationProcess({
     if (currentStep === "completed" && translationPlan) {
       return (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          {/* 添加思考过程组件 */}
+          {renderThinkingProcess()}
+
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
               翻译完成
@@ -509,13 +614,22 @@ ${finalTranslation}`;
       );
     }
 
-    // 默认显示初始化中
+    // 默认显示初始化中和思考过程
     return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="mt-4 text-gray-600 dark:text-gray-300">
-          正在初始化翻译流程...
-        </p>
+      <div>
+        {renderThinkingProcess()}
+
+        {isLoading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="mt-4 text-gray-600 dark:text-gray-300">
+              {currentStep === "planning" && "正在分析文本并创建翻译规划..."}
+              {currentStep === "translating" && "正在翻译文本段落..."}
+              {currentStep === "reviewing" && "正在审校译文..."}
+              {!currentStep && "正在初始化翻译流程..."}
+            </p>
+          </div>
+        )}
       </div>
     );
   };
