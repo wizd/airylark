@@ -10,6 +10,12 @@ interface Message {
     content: string;
 }
 
+// 检查并清理可能的Markdown格式
+function cleanOutput(content: string): string {
+    // 这里我们不需要像JSON那样严格清理，但仍然可以移除一些不必要的格式标记
+    return content;
+}
+
 export async function POST(request: Request) {
     try {
         // 从请求中获取译文和翻译规划
@@ -48,6 +54,7 @@ ${translatedText}
 `;
 
         const messages: Message[] = [
+            { role: 'system', content: '你是一个专业的翻译审校助手。请按照要求格式返回结果，不要添加额外的Markdown格式。' },
             { role: 'user', content: prompt }
         ];
 
@@ -98,7 +105,9 @@ ${translatedText}
                                     const data = JSON.parse(line.substring(6));
                                     const content = data.choices[0]?.delta?.content || '';
                                     if (content) {
-                                        controller.enqueue(new TextEncoder().encode(content));
+                                        // 清理内容中可能的格式标记
+                                        const cleanedContent = cleanOutput(content);
+                                        controller.enqueue(new TextEncoder().encode(cleanedContent));
                                     }
                                 } catch (e) {
                                     console.error('解析SSE数据失败:', e);

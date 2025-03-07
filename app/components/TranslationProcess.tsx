@@ -13,7 +13,8 @@ import {
   reviewTranslation as apiReviewTranslation,
   createTranslationPlanStream as apiCreateTranslationPlanStream,
   translateSegmentStream as apiTranslateSegmentStream,
-  reviewTranslationStream as apiReviewTranslationStream
+  reviewTranslationStream as apiReviewTranslationStream,
+  tryParseJson
 } from "../services/translationApi";
 import TranslationThinking from "./TranslationThinking";
 
@@ -317,9 +318,9 @@ export default function TranslationProcess({
         const planResult = await apiCreateTranslationPlanStream(
           sourceText,
           (partialResult) => {
-            try {
-              // 尝试解析部分结果
-              const parsedPlan = JSON.parse(partialResult);
+            // 尝试解析部分结果，使用增强的JSON解析
+            const parsedPlan = tryParseJson<TranslationPlan>(partialResult);
+            if (parsedPlan) {
               setPlanningThinkingData({
                 contentType: parsedPlan.contentType || "分析中...",
                 style: parsedPlan.style || "分析中...",
@@ -328,15 +329,17 @@ export default function TranslationProcess({
                 ],
                 keyTerms: parsedPlan.keyTerms || {}
               });
-            } catch (parseError) {
-              // 如果无法解析为JSON，显示原始文本
+            } else {
+              // 如果无法解析为JSON，显示原始文本的一部分
               console.log("部分结果无法解析为JSON，继续接收数据...");
+              // 可以在这里添加一些用户友好的提示
             }
           }
         );
 
-        try {
-          const parsedPlan = JSON.parse(planResult);
+        // 使用增强的JSON解析处理最终结果
+        const parsedPlan = tryParseJson<TranslationPlan>(planResult);
+        if (parsedPlan) {
           setTranslationPlan(parsedPlan);
 
           // 分割原文为段落
@@ -347,8 +350,29 @@ export default function TranslationProcess({
 
           // 更新步骤
           setCurrentStep("translating");
-        } catch (parseError) {
-          setError(`解析翻译规划失败: ${parseError}`);
+        } else {
+          // 如果最终结果仍然无法解析，尝试提取JSON部分
+          const jsonMatch = planResult.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              const extractedJson = jsonMatch[0];
+              const extractedPlan = JSON.parse(extractedJson);
+              setTranslationPlan(extractedPlan);
+
+              // 分割原文为段落
+              const segments = sourceText
+                .split(/\n\s*\n/)
+                .filter((segment) => segment.trim().length > 0);
+              setOriginalSegments(segments);
+
+              // 更新步骤
+              setCurrentStep("translating");
+            } catch (extractError) {
+              setError(`无法提取有效的JSON: ${extractError}`);
+            }
+          } else {
+            setError(`解析翻译规划失败: 无法识别JSON格式`);
+          }
         }
       } catch (err) {
         setError(

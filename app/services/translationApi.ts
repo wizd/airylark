@@ -6,6 +6,42 @@ export interface TranslationPlan {
 }
 
 /**
+ * 清理可能包含Markdown格式的JSON字符串
+ * @param jsonString 可能包含Markdown格式的JSON字符串
+ * @returns 清理后的JSON字符串
+ */
+function cleanJsonString(jsonString: string): string {
+    // 移除可能的Markdown代码块标记
+    let cleaned = jsonString.trim();
+
+    // 移除开头的```json、```、或其他代码块标记
+    cleaned = cleaned.replace(/^```(\w*\n|\n)?/, '');
+
+    // 移除结尾的```
+    cleaned = cleaned.replace(/```$/, '');
+
+    // 移除可能的注释
+    cleaned = cleaned.replace(/\/\/.*/g, '');
+
+    return cleaned.trim();
+}
+
+/**
+ * 尝试解析可能包含Markdown格式的JSON字符串
+ * @param jsonString 可能包含Markdown格式的JSON字符串
+ * @returns 解析后的对象，如果解析失败则返回null
+ */
+export function tryParseJson<T>(jsonString: string): T | null {
+    try {
+        const cleaned = cleanJsonString(jsonString);
+        return JSON.parse(cleaned) as T;
+    } catch (error) {
+        console.error('JSON解析失败:', error);
+        return null;
+    }
+}
+
+/**
  * 创建翻译规划
  * @param text 源文本
  * @returns 翻译规划

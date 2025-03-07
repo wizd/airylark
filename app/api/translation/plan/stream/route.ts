@@ -10,6 +10,17 @@ interface Message {
     content: string;
 }
 
+// 检查并清理JSON字符串
+function cleanJsonOutput(content: string): string {
+    // 移除可能的Markdown代码块标记
+    let cleaned = content;
+
+    // 移除```json或```等标记
+    cleaned = cleaned.replace(/```json\s*|\s*```/g, '');
+
+    return cleaned;
+}
+
 export async function POST(request: Request) {
     try {
         // 从请求中获取文本
@@ -49,6 +60,7 @@ ${text.substring(0, 1500)}${text.length > 1500 ? '...' : ''}
 `;
 
         const messages: Message[] = [
+            { role: 'system', content: '你是一个专业的翻译规划助手。请直接返回JSON格式的结果，不要添加任何Markdown格式或代码块标记。' },
             { role: 'user', content: prompt }
         ];
 
@@ -99,7 +111,9 @@ ${text.substring(0, 1500)}${text.length > 1500 ? '...' : ''}
                                     const data = JSON.parse(line.substring(6));
                                     const content = data.choices[0]?.delta?.content || '';
                                     if (content) {
-                                        controller.enqueue(new TextEncoder().encode(content));
+                                        // 清理内容中可能的Markdown格式
+                                        const cleanedContent = cleanJsonOutput(content);
+                                        controller.enqueue(new TextEncoder().encode(cleanedContent));
                                     }
                                 } catch (e) {
                                     console.error('解析SSE数据失败:', e);

@@ -186,7 +186,7 @@ export default function ExpertEditor({
                   value={editedSegments[index] || ""}
                   onChange={(e) => handleSegmentEdit(index, e.target.value)}
                   className="w-full bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-300 dark:border-gray-600 min-h-[100px] focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-500 overflow-hidden resize-none"
-                  style={{ height: "auto" }}
+                  style={{ height: "auto", overflow: "hidden" }}
                   onFocus={(e) => adjustTextareaHeight(e.target)}
                   rows={3}
                 />
