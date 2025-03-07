@@ -1,3 +1,6 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable react/no-unescaped-entities */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -88,7 +91,7 @@ function ExpertEditor({
         <ul className="list-disc list-inside text-blue-700 dark:text-blue-400 text-sm">
           <li>左侧显示原文，右侧为可编辑的译文</li>
           <li>每个段落保持对应，可以直接在右侧文本框中编辑译文</li>
-          <li>编辑完成后点击"保存修改"按钮应用更改</li>
+          <li>编辑完成后点击&quot;保存修改&quot;按钮应用更改</li>
           <li>
             专业术语参考：
             {Object.keys(translationPlan.keyTerms).map((term, i) => (
@@ -209,6 +212,8 @@ export default function TranslationProcess({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sourceText, setSourceText] = useState<string>("");
+  // 添加当前段落索引状态
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState<number>(0);
 
   // 添加思考过程数据状态，使用具体类型
   const [planningThinkingData, setPlanningThinkingData] =
@@ -290,211 +295,166 @@ export default function TranslationProcess({
     });
   };
 
-  // 第一步：创建翻译规划
-  const createTranslationPlan = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // 调用API创建翻译规划
-      const planResult = await apiCreateTranslationPlan(sourceText);
-
-      // 解析规划结果
-      // API 可能返回 Markdown 代码块格式的 JSON，需要提取实际的 JSON 内容
-      let jsonStr = planResult;
-
-      // 检查是否包含 Markdown 代码块
-      const jsonBlockMatch = planResult.match(
-        /```(?:json)?\s*\n([\s\S]*?)\n```/
-      );
-      if (jsonBlockMatch && jsonBlockMatch[1]) {
-        jsonStr = jsonBlockMatch[1].trim();
-      }
-
-      // 尝试解析 JSON
-      let plan: TranslationPlan;
+  // 处理翻译流程
+  useEffect(() => {
+    // 第一步：创建翻译规划
+    const createTranslationPlanInEffect = async () => {
+      setIsLoading(true);
+      setError(null);
       try {
-        plan = JSON.parse(jsonStr);
-      } catch (jsonError) {
-        console.error("JSON 解析失败，尝试创建默认翻译规划", jsonError);
-        console.log("原始返回内容:", planResult);
+        // 调用API创建翻译规划
+        const planResult = await apiCreateTranslationPlan(sourceText);
 
-        // 创建默认翻译规划
-        plan = {
-          contentType: "未知类型",
-          style: "标准",
-          specializedKnowledge: ["通用"],
-          keyTerms: {}
-        };
+        try {
+          const parsedPlan = JSON.parse(planResult);
+          setTranslationPlan(parsedPlan);
 
-        // 尝试从文本中提取关键信息
-        if (
-          planResult.includes("contentType") ||
-          planResult.includes("文本类型")
-        ) {
-          const contentTypeMatch = planResult.match(
-            /contentType[\"']?\s*:\s*[\"']([^\"']+)[\"']/
-          );
-          if (contentTypeMatch && contentTypeMatch[1]) {
-            plan.contentType = contentTypeMatch[1];
-          }
+          // 分割原文为段落
+          const segments = sourceText
+            .split(/\n\s*\n/)
+            .filter((segment) => segment.trim().length > 0);
+          setOriginalSegments(segments);
+
+          // 更新步骤
+          setCurrentStep("translating");
+        } catch (parseError) {
+          setError(`解析翻译规划失败: ${parseError}`);
         }
-
-        if (planResult.includes("style") || planResult.includes("风格")) {
-          const styleMatch = planResult.match(
-            /style[\"']?\s*:\s*[\"']([^\"']+)[\"']/
-          );
-          if (styleMatch && styleMatch[1]) {
-            plan.style = styleMatch[1];
-          }
-        }
+      } catch (err) {
+        setError(
+          `创建翻译规划失败: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+      } finally {
+        setIsLoading(false);
       }
+    };
 
-      setTranslationPlan(plan);
-      // 更新思考过程数据
-      setPlanningThinkingData(plan);
-      setProgress(20);
-      setCurrentStep("translating");
+    // 第二步：翻译段落
+    const translateSegmentsInEffect = async () => {
+      if (!translationPlan) return;
 
-      // 分割文本为段落
-      const segments = sourceText
-        .split(/\n\n+/)
-        .filter((segment) => segment.trim().length > 0)
-        .map((segment, index) => `[${index + 1}] ${segment.trim()}`);
+      setIsLoading(true);
+      setError(null);
+      try {
+        const translatedResults = [];
+        const thinkingData = [];
 
-      setOriginalSegments(segments);
-      // 更新翻译思考数据的总段落数
-      setTranslatingThinkingData((prev: TranslatingThinkingData) => ({
-        ...prev,
-        totalSegments: segments.length
-      }));
-    } catch (err) {
-      setError(
-        `创建翻译规划失败: ${err instanceof Error ? err.message : String(err)}`
-      );
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+        // 逐段翻译
+        for (let i = 0; i < originalSegments.length; i++) {
+          setCurrentSegmentIndex(i);
 
-  // 第二步：翻译段落
-  const translateSegments = async () => {
-    if (!translationPlan) return;
+          try {
+            // 调用API翻译段落
+            const translationResult = await apiTranslateSegment(
+              originalSegments[i],
+              translationPlan
+            );
 
-    setIsLoading(true);
-    setError(null);
-    try {
-      const translated = [];
-      let currentProgress = 20;
-      const progressIncrement = 60 / originalSegments.length;
-
-      for (let i = 0; i < originalSegments.length; i++) {
-        const segment = originalSegments[i];
-
-        // 更新当前正在翻译的段落信息
-        setTranslatingThinkingData((prev: TranslatingThinkingData) => ({
-          ...prev,
-          currentSegmentIndex: i,
-          currentSegment: segment,
-          currentTranslation: ""
-        }));
-
-        // 调用API翻译段落
-        let translatedSegment = await apiTranslateSegment(
-          segment,
-          translationPlan
-        );
-
-        // 清理可能的 Markdown 格式
-        const codeBlockMatch = translatedSegment.match(
-          /```(?:.*?)\n([\s\S]*?)\n```/
-        );
-        if (codeBlockMatch && codeBlockMatch[1]) {
-          translatedSegment = codeBlockMatch[1].trim();
+            // 提取思考过程和翻译结果
+            const resultParts = translationResult.split("===TRANSLATION===");
+            if (resultParts.length === 2) {
+              thinkingData.push(resultParts[0].trim());
+              translatedResults.push(resultParts[1].trim());
+            } else {
+              // 如果没有特定格式，直接使用结果
+              thinkingData.push("");
+              translatedResults.push(translationResult.trim());
+            }
+          } catch (segmentError) {
+            setError(
+              `翻译段落 ${i + 1} 失败: ${
+                segmentError instanceof Error
+                  ? segmentError.message
+                  : String(segmentError)
+              }`
+            );
+            // 添加错误占位符
+            thinkingData.push("");
+            translatedResults.push(`[翻译错误: 段落 ${i + 1}]`);
+          }
         }
 
         // 更新翻译结果
-        setTranslatingThinkingData((prev: TranslatingThinkingData) => ({
-          ...prev,
-          currentTranslation: translatedSegment
-        }));
+        setTranslatingThinkingData({
+          currentSegmentIndex: originalSegments.length - 1,
+          totalSegments: originalSegments.length,
+          currentSegment: originalSegments[originalSegments.length - 1] || "",
+          currentTranslation:
+            translatedResults[translatedResults.length - 1] || ""
+        });
+        setTranslatedSegments(translatedResults);
 
-        translated.push(translatedSegment);
-        currentProgress += progressIncrement;
-        setProgress(Math.min(Math.round(currentProgress), 80));
+        // 更新步骤
+        setCurrentStep("reviewing");
+      } catch (err) {
+        setError(
+          `翻译过程失败: ${err instanceof Error ? err.message : String(err)}`
+        );
+      } finally {
+        setIsLoading(false);
       }
+    };
 
-      setTranslatedSegments(translated);
-      setProgress(80);
-      setCurrentStep("reviewing");
-    } catch (err) {
-      setError(
-        `翻译段落失败: ${err instanceof Error ? err.message : String(err)}`
-      );
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    // 第三步：审校译文
+    const reviewTranslationInEffect = async () => {
+      if (!translationPlan) return;
 
-  // 第三步：审校译文
-  const reviewTranslation = async () => {
-    if (!translationPlan) return;
+      setIsLoading(true);
+      setError(null);
+      try {
+        // 合并翻译段落
+        const combinedTranslation = translatedSegments.join("\n\n");
 
-    setIsLoading(true);
-    setError(null);
-    try {
-      const combinedTranslation = translatedSegments.join("\n\n");
+        // 调用API审校译文
+        const reviewResult = await apiReviewTranslation(
+          combinedTranslation,
+          translationPlan
+        );
 
-      // 更新审校思考数据
-      setReviewingThinkingData({
-        reviewNotes: [
-          "正在进行整体审校...",
-          "检查术语一致性...",
-          "优化语言表达..."
-        ],
-        improvements: []
-      });
+        // 提取思考过程和最终译文
+        const resultParts = reviewResult.split("===FINAL_TRANSLATION===");
+        if (resultParts.length === 2) {
+          setReviewingThinkingData({
+            reviewNotes: [resultParts[0].trim()],
+            improvements: []
+          });
+          setFinalTranslation(resultParts[1].trim());
+        } else {
+          // 如果没有特定格式，直接使用结果
+          setReviewingThinkingData({
+            reviewNotes: [],
+            improvements: []
+          });
+          setFinalTranslation(reviewResult.trim());
+        }
 
-      // 调用API审校译文
-      let reviewedTranslation = await apiReviewTranslation(
-        combinedTranslation,
-        translationPlan
-      );
-
-      // 清理可能的 Markdown 格式
-      const codeBlockMatch = reviewedTranslation.match(
-        /```(?:.*?)\n([\s\S]*?)\n```/
-      );
-      if (codeBlockMatch && codeBlockMatch[1]) {
-        reviewedTranslation = codeBlockMatch[1].trim();
+        // 更新步骤
+        setCurrentStep("completed");
+      } catch (err) {
+        setError(
+          `审校译文失败: ${err instanceof Error ? err.message : String(err)}`
+        );
+      } finally {
+        setIsLoading(false);
       }
+    };
 
-      // 更新审校思考数据
-      setReviewingThinkingData({
-        reviewNotes: ["完成整体审校", "术语一致性检查完成", "语言表达优化完成"],
-        improvements: [
-          "优化了专业术语翻译",
-          "改进了语言流畅度",
-          "统一了风格表达"
-        ]
-      });
-
-      // 转换为Markdown格式，但不将元数据和翻译内容混合在一起
-      const markdownTranslation = reviewedTranslation;
-
-      setFinalTranslation(markdownTranslation);
-      setProgress(100);
-      setCurrentStep("completed");
-    } catch (err) {
-      setError(
-        `审校译文失败: ${err instanceof Error ? err.message : String(err)}`
-      );
-      console.error(err);
-    } finally {
-      setIsLoading(false);
+    if (sourceText && currentStep === "planning") {
+      createTranslationPlanInEffect();
+    } else if (originalSegments.length > 0 && currentStep === "translating") {
+      translateSegmentsInEffect();
+    } else if (translatedSegments.length > 0 && currentStep === "reviewing") {
+      reviewTranslationInEffect();
     }
-  };
+  }, [
+    sourceText,
+    currentStep,
+    originalSegments,
+    translatedSegments,
+    translationPlan
+  ]);
 
   // 处理专家编辑保存
   const handleExpertEditSave = (editedSegments: string[]) => {
@@ -509,22 +469,6 @@ export default function TranslationProcess({
   const handleExpertEditCancel = () => {
     setIsExpertMode(false);
   };
-
-  // 根据当前步骤执行相应操作
-  useEffect(() => {
-    if (sourceText && currentStep === "planning") {
-      createTranslationPlan();
-    } else if (originalSegments.length > 0 && currentStep === "translating") {
-      translateSegments();
-    } else if (translatedSegments.length > 0 && currentStep === "reviewing") {
-      reviewTranslation();
-    }
-  }, [
-    sourceText,
-    currentStep,
-    originalSegments.length,
-    translatedSegments.length
-  ]);
 
   // 渲染步骤指示器
   const renderStepIndicator = () => {
