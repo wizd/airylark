@@ -6,14 +6,16 @@ import LinkInput from "./LinkInput";
 import DropZone from "./DropZone";
 import UploadStatus from "./UploadStatus";
 import TranslationProcess from "./TranslationProcess";
+import TranslationQualityEvaluator from "./TranslationQualityEvaluator";
 
 export default function TranslationApp() {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [translationUrl, setTranslationUrl] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"upload" | "link" | "drop">(
-    "upload"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "upload" | "link" | "drop" | "evaluate"
+  >("upload");
   const [isTranslating, setIsTranslating] = useState(false);
+  const [isEvaluating, setIsEvaluating] = useState(false);
   const [manualContent, setManualContent] = useState<string | null>(null);
 
   // 处理文件上传
@@ -47,9 +49,15 @@ export default function TranslationApp() {
     setIsTranslating(true);
   };
 
+  // 开始翻译质量评估
+  const startEvaluation = () => {
+    setIsEvaluating(true);
+  };
+
   // 返回上传界面
   const handleBack = () => {
     setIsTranslating(false);
+    setIsEvaluating(false);
   };
 
   // 如果正在翻译，显示翻译处理页面
@@ -62,6 +70,11 @@ export default function TranslationApp() {
         onBack={handleBack}
       />
     );
+  }
+
+  // 如果正在评估，显示翻译质量评估页面
+  if (isEvaluating) {
+    return <TranslationQualityEvaluator onBack={handleBack} />;
   }
 
   // 检查是否有可翻译的内容
@@ -110,6 +123,16 @@ export default function TranslationApp() {
           >
             拖放文件
           </button>
+          <button
+            className={`py-2 px-4 font-medium text-sm focus:outline-none ${
+              activeTab === "evaluate"
+                ? "text-blue-600 border-b-2 border-blue-600"
+                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+            }`}
+            onClick={() => setActiveTab("evaluate")}
+          >
+            翻译质量评估
+          </button>
         </div>
 
         {/* 内容区域 */}
@@ -121,6 +144,24 @@ export default function TranslationApp() {
             <LinkInput onLinkSubmit={handleLinkSubmit} />
           )}
           {activeTab === "drop" && <DropZone onFilesDrop={handleFilesDrop} />}
+          {activeTab === "evaluate" && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
+                翻译质量评估
+              </h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-6">
+                上传或粘贴原文和译文，我们将对翻译质量进行专业评估，提供详细的评分和改进建议。
+              </p>
+              <div className="flex justify-center">
+                <button
+                  onClick={startEvaluation}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-lg font-semibold"
+                >
+                  开始评估翻译质量
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 上传状态 */}
