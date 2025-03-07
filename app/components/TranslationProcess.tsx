@@ -286,16 +286,73 @@ export default function TranslationProcess({
   // 读取文件内容
   const readFileContent = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        if (e.target?.result) {
-          resolve(e.target.result as string);
-        } else {
-          reject(new Error("读取文件失败"));
-        }
-      };
-      reader.onerror = () => reject(new Error("读取文件失败"));
-      reader.readAsText(file);
+      // 检查文件类型
+      const fileType = file.name.split(".").pop()?.toLowerCase();
+
+      // 对于Word文档(.docx)文件，使用ArrayBuffer读取并发送到服务器解析
+      if (fileType === "docx") {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          if (e.target?.result) {
+            try {
+              // 创建FormData对象
+              const formData = new FormData();
+              formData.append("file", file);
+
+              console.log(
+                `正在发送Word文档 ${file.name} 到服务器解析，大小: ${file.size} 字节`
+              );
+
+              // 发送到服务器端点进行解析
+              const response = await fetch("/api/parse-docx", {
+                method: "POST",
+                body: formData
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.error || response.statusText;
+                console.error(`解析Word文档失败: ${errorMessage}`);
+                throw new Error(`解析Word文档失败: ${errorMessage}`);
+              }
+
+              const data = await response.json();
+              console.log(
+                `成功解析Word文档，提取文本长度: ${data.text.length} 字符`
+              );
+              resolve(data.text);
+            } catch (error) {
+              console.error("处理Word文档时出错:", error);
+              reject(
+                new Error(
+                  `处理Word文档时出错: ${
+                    error instanceof Error ? error.message : String(error)
+                  }`
+                )
+              );
+            }
+          } else {
+            reject(new Error("读取文件失败"));
+          }
+        };
+        reader.onerror = (e) => {
+          console.error("读取Word文档失败:", e);
+          reject(new Error("读取Word文档失败"));
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        // 对于其他文本文件，使用普通的文本读取方式
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          if (e.target?.result) {
+            resolve(e.target.result as string);
+          } else {
+            reject(new Error("读取文件失败"));
+          }
+        };
+        reader.onerror = () => reject(new Error("读取文件失败"));
+        reader.readAsText(file);
+      }
     });
   };
 
