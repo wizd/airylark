@@ -10,7 +10,10 @@ import {
   TranslationPlan,
   createTranslationPlan as apiCreateTranslationPlan,
   translateSegment as apiTranslateSegment,
-  reviewTranslation as apiReviewTranslation
+  reviewTranslation as apiReviewTranslation,
+  createTranslationPlanStream as apiCreateTranslationPlanStream,
+  translateSegmentStream as apiTranslateSegmentStream,
+  reviewTranslationStream as apiReviewTranslationStream
 } from "../services/translationApi";
 import TranslationThinking from "./TranslationThinking";
 
@@ -302,8 +305,35 @@ export default function TranslationProcess({
       setIsLoading(true);
       setError(null);
       try {
-        // 调用API创建翻译规划
-        const planResult = await apiCreateTranslationPlan(sourceText);
+        // 设置初始思考数据
+        setPlanningThinkingData({
+          contentType: "分析中...",
+          style: "分析中...",
+          specializedKnowledge: ["分析中..."],
+          keyTerms: {}
+        });
+
+        // 使用流式API创建翻译规划
+        const planResult = await apiCreateTranslationPlanStream(
+          sourceText,
+          (partialResult) => {
+            try {
+              // 尝试解析部分结果
+              const parsedPlan = JSON.parse(partialResult);
+              setPlanningThinkingData({
+                contentType: parsedPlan.contentType || "分析中...",
+                style: parsedPlan.style || "分析中...",
+                specializedKnowledge: parsedPlan.specializedKnowledge || [
+                  "分析中..."
+                ],
+                keyTerms: parsedPlan.keyTerms || {}
+              });
+            } catch (parseError) {
+              // 如果无法解析为JSON，显示原始文本
+              console.log("部分结果无法解析为JSON，继续接收数据...");
+            }
+          }
+        );
 
         try {
           const parsedPlan = JSON.parse(planResult);
@@ -345,11 +375,26 @@ export default function TranslationProcess({
         for (let i = 0; i < originalSegments.length; i++) {
           setCurrentSegmentIndex(i);
 
+          // 更新思考数据，显示当前正在翻译的段落
+          setTranslatingThinkingData({
+            currentSegmentIndex: i,
+            totalSegments: originalSegments.length,
+            currentSegment: originalSegments[i],
+            currentTranslation: "翻译中..."
+          });
+
           try {
-            // 调用API翻译段落
-            const translationResult = await apiTranslateSegment(
+            // 使用流式API翻译段落
+            const translationResult = await apiTranslateSegmentStream(
               originalSegments[i],
-              translationPlan
+              translationPlan,
+              (partialResult) => {
+                // 更新思考数据，显示部分翻译结果
+                setTranslatingThinkingData((prevData) => ({
+                  ...prevData,
+                  currentTranslation: partialResult
+                }));
+              }
             );
 
             // 提取思考过程和翻译结果
@@ -407,10 +452,33 @@ export default function TranslationProcess({
         // 合并翻译段落
         const combinedTranslation = translatedSegments.join("\n\n");
 
-        // 调用API审校译文
-        const reviewResult = await apiReviewTranslation(
+        // 初始化审校思考数据
+        setReviewingThinkingData({
+          reviewNotes: ["审校中..."],
+          improvements: []
+        });
+
+        // 使用流式API审校译文
+        const reviewResult = await apiReviewTranslationStream(
           combinedTranslation,
-          translationPlan
+          translationPlan,
+          (partialResult) => {
+            // 更新思考数据，显示部分审校结果
+            const resultParts = partialResult.split("===FINAL_TRANSLATION===");
+            if (resultParts.length === 2) {
+              setReviewingThinkingData({
+                reviewNotes: [resultParts[0].trim()],
+                improvements: []
+              });
+              setFinalTranslation(resultParts[1].trim());
+            } else {
+              // 如果还没有分隔符，显示全部内容为审校笔记
+              setReviewingThinkingData({
+                reviewNotes: [partialResult.trim()],
+                improvements: []
+              });
+            }
+          }
         );
 
         // 提取思考过程和最终译文
