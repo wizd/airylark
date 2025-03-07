@@ -64,6 +64,10 @@ export default function TranslationApp() {
     );
   }
 
+  // 检查是否有可翻译的内容
+  const hasTranslatableContent =
+    uploadedFiles.length > 0 || !!translationUrl || !!manualContent;
+
   return (
     <div className="w-full max-w-4xl mx-auto rounded-xl bg-white dark:bg-gray-800 shadow-lg p-8">
       <div className="text-center mb-10">
@@ -218,6 +222,18 @@ export default function TranslationApp() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 全局开始翻译按钮 */}
+      {hasTranslatableContent && (
+        <div className="mt-8 flex justify-center">
+          <button
+            onClick={startTranslation}
+            className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-lg font-semibold"
+          >
+            开始智能翻译
+          </button>
         </div>
       )}
 

@@ -34,16 +34,6 @@ export default function TranslationProcess({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sourceText, setSourceText] = useState<string>("");
-  const [useRealApi, setUseRealApi] = useState(false);
-
-  // 模拟API调用
-  const mockApiCall = async (prompt: string, delay = 1000): Promise<string> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(`模拟API响应: ${prompt}`);
-      }, delay);
-    });
-  };
 
   // 初始化源文本
   useEffect(() => {
@@ -53,19 +43,32 @@ export default function TranslationProcess({
         if (content) {
           setSourceText(content);
         } else if (url) {
-          // 模拟从URL获取内容
-          const fetchedContent = await mockApiCall(
-            `从URL获取内容: ${url}`,
-            1500
-          );
-          setSourceText(fetchedContent);
+          // 从URL获取内容
+          try {
+            const response = await fetch(url);
+            if (!response.ok) {
+              throw new Error(`获取URL内容失败: ${response.statusText}`);
+            }
+            const fetchedContent = await response.text();
+            setSourceText(fetchedContent);
+          } catch (err) {
+            throw new Error(
+              `处理URL时出错: ${
+                err instanceof Error ? err.message : String(err)
+              }`
+            );
+          }
         } else if (files.length > 0) {
           // 读取文件内容
           const fileContent = await readFileContent(files[0]);
           setSourceText(fileContent);
         }
       } catch (err) {
-        setError("初始化源文本失败");
+        setError(
+          `初始化源文本失败: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
         console.error(err);
       } finally {
         setIsLoading(false);
@@ -96,35 +99,59 @@ export default function TranslationProcess({
     setIsLoading(true);
     setError(null);
     try {
-      let planResult: string;
-
-      if (useRealApi) {
-        // 使用实际API
-        planResult = await apiCreateTranslationPlan(sourceText);
-      } else {
-        // 模拟API调用
-        const prompt = `分析以下文本，识别其类型、风格以及专业知识领域，并创建翻译规划和关键术语字典：\n\n${sourceText.substring(
-          0,
-          500
-        )}...`;
-        await mockApiCall(prompt, 2000);
-
-        // 模拟解析API响应
-        planResult = JSON.stringify({
-          contentType: "学术论文",
-          style: "正式、专业",
-          specializedKnowledge: ["人工智能", "大语言模型", "中国科技发展"],
-          keyTerms: {
-            "large model": "大模型",
-            industry: "产业",
-            challenges: "挑战",
-            opportunities: "机遇"
-          }
-        });
-      }
+      // 调用API创建翻译规划
+      const planResult = await apiCreateTranslationPlan(sourceText);
 
       // 解析规划结果
-      const plan: TranslationPlan = JSON.parse(planResult);
+      // API 可能返回 Markdown 代码块格式的 JSON，需要提取实际的 JSON 内容
+      let jsonStr = planResult;
+
+      // 检查是否包含 Markdown 代码块
+      const jsonBlockMatch = planResult.match(
+        /```(?:json)?\s*\n([\s\S]*?)\n```/
+      );
+      if (jsonBlockMatch && jsonBlockMatch[1]) {
+        jsonStr = jsonBlockMatch[1].trim();
+      }
+
+      // 尝试解析 JSON
+      let plan: TranslationPlan;
+      try {
+        plan = JSON.parse(jsonStr);
+      } catch (jsonError) {
+        console.error("JSON 解析失败，尝试创建默认翻译规划", jsonError);
+        console.log("原始返回内容:", planResult);
+
+        // 创建默认翻译规划
+        plan = {
+          contentType: "未知类型",
+          style: "标准",
+          specializedKnowledge: ["通用"],
+          keyTerms: {}
+        };
+
+        // 尝试从文本中提取关键信息
+        if (
+          planResult.includes("contentType") ||
+          planResult.includes("文本类型")
+        ) {
+          const contentTypeMatch = planResult.match(
+            /contentType[\"']?\s*:\s*[\"']([^\"']+)[\"']/
+          );
+          if (contentTypeMatch && contentTypeMatch[1]) {
+            plan.contentType = contentTypeMatch[1];
+          }
+        }
+
+        if (planResult.includes("style") || planResult.includes("风格")) {
+          const styleMatch = planResult.match(
+            /style[\"']?\s*:\s*[\"']([^\"']+)[\"']/
+          );
+          if (styleMatch && styleMatch[1]) {
+            plan.style = styleMatch[1];
+          }
+        }
+      }
 
       setTranslationPlan(plan);
       setProgress(20);
@@ -138,7 +165,9 @@ export default function TranslationProcess({
 
       setOriginalSegments(segments);
     } catch (err) {
-      setError("创建翻译规划失败");
+      setError(
+        `创建翻译规划失败: ${err instanceof Error ? err.message : String(err)}`
+      );
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -158,40 +187,19 @@ export default function TranslationProcess({
 
       for (let i = 0; i < originalSegments.length; i++) {
         const segment = originalSegments[i];
-        const segmentNumber = segment.match(/^\[(\d+)\]/)?.[0] || `[${i + 1}]`;
 
-        let translatedSegment: string;
+        // 调用API翻译段落
+        let translatedSegment = await apiTranslateSegment(
+          segment,
+          translationPlan
+        );
 
-        if (useRealApi) {
-          // 使用实际API
-          translatedSegment = await apiTranslateSegment(
-            segment,
-            translationPlan
-          );
-        } else {
-          // 模拟API调用
-          const prompt = `
-请将以下文本翻译成中文。保持原文的风格和专业性。
-文本类型: ${translationPlan.contentType}
-风格: ${translationPlan.style}
-专业领域: ${translationPlan.specializedKnowledge.join(", ")}
-关键术语对照:
-${Object.entries(translationPlan.keyTerms)
-  .map(([en, zh]) => `- ${en}: ${zh}`)
-  .join("\n")}
-
-原文:
-${segment}
-
-请确保在翻译结果前保留段落编号 ${segmentNumber}。
-`;
-
-          await mockApiCall(prompt, 1000);
-
-          // 模拟翻译结果
-          translatedSegment = `${segmentNumber} 这是第${
-            i + 1
-          }段的中文翻译内容。这里模拟了翻译API的返回结果，实际应用中会返回真实的翻译内容。`;
+        // 清理可能的 Markdown 格式
+        const codeBlockMatch = translatedSegment.match(
+          /```(?:.*?)\n([\s\S]*?)\n```/
+        );
+        if (codeBlockMatch && codeBlockMatch[1]) {
+          translatedSegment = codeBlockMatch[1].trim();
         }
 
         translated.push(translatedSegment);
@@ -203,7 +211,9 @@ ${segment}
       setProgress(80);
       setCurrentStep("reviewing");
     } catch (err) {
-      setError("翻译段落失败");
+      setError(
+        `翻译段落失败: ${err instanceof Error ? err.message : String(err)}`
+      );
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -219,40 +229,18 @@ ${segment}
     try {
       const combinedTranslation = translatedSegments.join("\n\n");
 
-      let reviewedTranslation: string;
+      // 调用API审校译文
+      let reviewedTranslation = await apiReviewTranslation(
+        combinedTranslation,
+        translationPlan
+      );
 
-      if (useRealApi) {
-        // 使用实际API
-        reviewedTranslation = await apiReviewTranslation(
-          combinedTranslation,
-          translationPlan
-        );
-      } else {
-        // 模拟API调用
-        const prompt = `
-请审校以下中文翻译，确保准确性、流畅性和一致性。特别注意专业术语的翻译是否准确。
-原文类型: ${translationPlan.contentType}
-原文风格: ${translationPlan.style}
-专业领域: ${translationPlan.specializedKnowledge.join(", ")}
-
-译文:
-${combinedTranslation}
-
-请提供修改后的最终译文，保留原有的段落编号。
-`;
-
-        await mockApiCall(prompt, 2000);
-
-        // 模拟审校后的结果
-        reviewedTranslation = translatedSegments
-          .map((segment, index) => {
-            const segmentNumber =
-              segment.match(/^\[(\d+)\]/)?.[0] || `[${index + 1}]`;
-            return `${segmentNumber} 这是经过审校的第${
-              index + 1
-            }段翻译内容。审校确保了术语一致性、语法正确性和表达流畅性。`;
-          })
-          .join("\n\n");
+      // 清理可能的 Markdown 格式
+      const codeBlockMatch = reviewedTranslation.match(
+        /```(?:.*?)\n([\s\S]*?)\n```/
+      );
+      if (codeBlockMatch && codeBlockMatch[1]) {
+        reviewedTranslation = codeBlockMatch[1].trim();
       }
 
       // 转换为Markdown格式
@@ -280,7 +268,9 @@ ${reviewedTranslation}
       setProgress(100);
       setCurrentStep("completed");
     } catch (err) {
-      setError("审校译文失败");
+      setError(
+        `审校译文失败: ${err instanceof Error ? err.message : String(err)}`
+      );
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -424,25 +414,9 @@ ${reviewedTranslation}
   return (
     <div className="w-full max-w-4xl mx-auto">
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
-            智能翻译处理
-          </h1>
-          <div className="flex items-center">
-            <span className="mr-2 text-sm text-gray-600 dark:text-gray-300">
-              使用实际API
-            </span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                className="sr-only peer"
-                checked={useRealApi}
-                onChange={() => setUseRealApi(!useRealApi)}
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-        </div>
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-6">
+          智能翻译处理
+        </h1>
         {renderStepIndicator()}
         {renderStepContent()}
       </div>

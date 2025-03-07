@@ -1,6 +1,6 @@
 // 这里应该使用环境变量来存储 API 密钥
 const API_KEY = process.env.NEXT_PUBLIC_TRANSLATION_API_KEY || '';
-const API_URL = 'https://api.siliconflow.cn/v1/chat/completions';
+const API_URL = process.env.NEXT_PUBLIC_TRANSLATION_API_URL || '';
 
 interface Message {
     role: 'system' | 'user' | 'assistant';
@@ -42,7 +42,7 @@ export interface TranslationPlan {
  */
 export async function callTranslationApi(
     messages: Message[],
-    model: string = 'deepseek-ai/DeepSeek-V3'
+    model: string = process.env.NEXT_PUBLIC_TRANSLATION_MODEL || ''
 ): Promise<string> {
     try {
         if (!API_KEY) {
@@ -88,6 +88,18 @@ export async function createTranslationPlan(text: string): Promise<string> {
 - specializedKnowledge: 专业知识领域（数组）
 - keyTerms: 关键术语字典（对象，英文术语为键，中文翻译为值）
 
+请确保返回的是有效的JSON格式，不要包含Markdown代码块标记，直接返回JSON对象。
+例如：
+{
+  "contentType": "学术论文",
+  "style": "正式",
+  "specializedKnowledge": ["人工智能", "机器学习"],
+  "keyTerms": {
+    "machine learning": "机器学习",
+    "artificial intelligence": "人工智能"
+  }
+}
+
 源文本:
 ${text.substring(0, 1500)}${text.length > 1500 ? '...' : ''}
 `;
@@ -121,6 +133,7 @@ ${Object.entries(translationPlan.keyTerms).map(([en, zh]) => `- ${en}: ${zh}`).j
 ${segment}
 
 请确保在翻译结果前保留段落编号（如果有）。
+请直接返回翻译结果，不要使用Markdown代码块或其他格式标记。
 `;
 
     const messages: Message[] = [
@@ -150,6 +163,7 @@ export async function reviewTranslation(
 ${translatedText}
 
 请提供修改后的最终译文，保留原有的段落编号。
+请直接返回审校后的文本，不要使用Markdown代码块或其他格式标记。
 `;
 
     const messages: Message[] = [
