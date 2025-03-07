@@ -22,6 +22,11 @@ export default function ExpertEditor({
   const [editedSegments, setEditedSegments] = useState<string[]>([]);
   // 创建文本框引用数组
   const textareaRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
+  // 跟踪哪些段落处于编辑模式
+  const [editingIndices, setEditingIndices] = useState<number[]>([]);
+
+  // 调试输出
+  console.log("当前编辑状态:", editingIndices);
 
   // 初始化编辑状态
   useEffect(() => {
@@ -31,6 +36,8 @@ export default function ExpertEditor({
       0,
       translatedSegments.length
     );
+    // 重置编辑模式状态
+    setEditingIndices([]);
 
     // 在下一个渲染周期调整所有文本框高度
     setTimeout(() => {
@@ -49,18 +56,25 @@ export default function ExpertEditor({
     // 重置高度，以便正确计算新的高度
     textarea.style.height = "0px";
     // 设置新的高度，加上一点额外空间以避免滚动条
-    const newHeight = textarea.scrollHeight + 4;
+    const newHeight = textarea.scrollHeight;
     textarea.style.height = `${newHeight}px`;
   };
 
-  // 初始化后调整所有文本框高度
+  // 监听窗口大小变化，重新调整所有文本框高度
   useEffect(() => {
-    textareaRefs.current.forEach((textarea) => {
-      if (textarea) {
-        adjustTextareaHeight(textarea);
-      }
-    });
-  }, [editedSegments]);
+    const handleResize = () => {
+      textareaRefs.current.forEach((textarea) => {
+        if (textarea) {
+          adjustTextareaHeight(textarea);
+        }
+      });
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   // 处理段落编辑
   const handleSegmentEdit = (index: number, newValue: string) => {
@@ -68,16 +82,37 @@ export default function ExpertEditor({
     newSegments[index] = newValue;
     setEditedSegments(newSegments);
 
-    // 调整当前编辑的文本框高度
+    // 立即调整当前编辑的文本框高度
+    if (textareaRefs.current[index]) {
+      adjustTextareaHeight(textareaRefs.current[index]!);
+    }
+  };
+
+  // 处理段落点击，切换编辑模式
+  const handleSegmentClick = (index: number) => {
+    const newEditingIndices = [...editingIndices, index];
+    setEditingIndices(newEditingIndices);
+
+    // 在下一个渲染周期后聚焦到文本框
     setTimeout(() => {
       if (textareaRefs.current[index]) {
+        textareaRefs.current[index]?.focus();
         adjustTextareaHeight(textareaRefs.current[index]!);
       }
     }, 0);
   };
 
+  // 处理编辑完成
+  const handleEditComplete = (index: number) => {
+    const newEditingIndices = editingIndices.filter((i) => i !== index);
+    setEditingIndices(newEditingIndices);
+  };
+
   // 处理保存
   const handleSave = () => {
+    // 清空所有编辑状态
+    setEditingIndices([]);
+    // 调用保存回调
     onSave(editedSegments);
   };
 
@@ -181,15 +216,68 @@ export default function ExpertEditor({
                     译文
                   </h4>
                 </div>
-                <textarea
-                  ref={(el) => setTextareaRef(el, index)}
-                  value={editedSegments[index] || ""}
-                  onChange={(e) => handleSegmentEdit(index, e.target.value)}
-                  className="w-full bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-300 dark:border-gray-600 min-h-[100px] focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-500 overflow-hidden resize-none"
-                  style={{ height: "auto", overflow: "hidden" }}
-                  onFocus={(e) => adjustTextareaHeight(e.target)}
-                  rows={3}
-                />
+
+                {editingIndices.includes(index) ? (
+                  <div className="relative">
+                    <textarea
+                      ref={(el) => setTextareaRef(el, index)}
+                      value={editedSegments[index] || ""}
+                      onChange={(e) => handleSegmentEdit(index, e.target.value)}
+                      className="w-full bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-300 dark:border-gray-600 min-h-[100px] focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-500 resize-none"
+                      style={{ height: "auto", overflow: "hidden" }}
+                      onInput={(e) =>
+                        adjustTextareaHeight(e.target as HTMLTextAreaElement)
+                      }
+                      onBlur={() => handleEditComplete(index)}
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => handleEditComplete(index)}
+                      className="absolute top-2 right-2 p-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                      title="完成编辑"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => handleSegmentClick(index)}
+                    className="group bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-300 dark:border-gray-600 min-h-[100px] cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors relative"
+                  >
+                    <p className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                      {editedSegments[index] || ""}
+                    </p>
+                    <div className="absolute bottom-2 right-2 text-xs text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4 inline mr-1"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           );
