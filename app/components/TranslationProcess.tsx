@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   TranslationPlan,
   createTranslationPlan as apiCreateTranslationPlan,
@@ -243,26 +244,8 @@ export default function TranslationProcess({
         reviewedTranslation = codeBlockMatch[1].trim();
       }
 
-      // 转换为Markdown格式
-      const markdownTranslation = `
-# 翻译结果
-
-## 文档信息
-- **文本类型**: ${translationPlan.contentType}
-- **风格**: ${translationPlan.style}
-- **专业领域**: ${translationPlan.specializedKnowledge.join(", ")}
-
-## 关键术语对照表
-| 英文 | 中文 |
-|------|------|
-${Object.entries(translationPlan.keyTerms)
-  .map(([en, zh]) => `| ${en} | ${zh} |`)
-  .join("\n")}
-
-## 译文内容
-
-${reviewedTranslation}
-`;
+      // 转换为Markdown格式，但不将元数据和翻译内容混合在一起
+      const markdownTranslation = reviewedTranslation;
 
       setFinalTranslation(markdownTranslation);
       setProgress(100);
@@ -368,7 +351,7 @@ ${reviewedTranslation}
       );
     }
 
-    if (currentStep === "completed") {
+    if (currentStep === "completed" && translationPlan) {
       return (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
           <div className="flex justify-between items-center mb-6">
@@ -378,12 +361,38 @@ ${reviewedTranslation}
             <div className="flex space-x-2">
               <button
                 onClick={() => {
-                  // 复制到剪贴板
+                  // 复制到剪贴板，只复制翻译内容
                   navigator.clipboard.writeText(finalTranslation);
                 }}
                 className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
               >
-                复制
+                复制翻译
+              </button>
+              <button
+                onClick={() => {
+                  // 复制完整内容，包括元数据
+                  const fullContent = `# 翻译结果
+
+## 文档信息
+- **文本类型**: ${translationPlan.contentType}
+- **风格**: ${translationPlan.style}
+- **专业领域**: ${translationPlan.specializedKnowledge.join(", ")}
+
+## 关键术语对照表
+| 英文 | 中文 |
+|------|------|
+${Object.entries(translationPlan.keyTerms)
+  .map(([en, zh]) => `| ${en} | ${zh} |`)
+  .join("\n")}
+
+## 译文内容
+
+${finalTranslation}`;
+                  navigator.clipboard.writeText(fullContent);
+                }}
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              >
+                复制全部
               </button>
               <button
                 onClick={onBack}
@@ -393,8 +402,108 @@ ${reviewedTranslation}
               </button>
             </div>
           </div>
-          <div className="prose dark:prose-invert max-w-none overflow-auto bg-gray-50 dark:bg-gray-900 rounded-lg p-6">
-            <ReactMarkdown>{finalTranslation}</ReactMarkdown>
+
+          {/* 元数据部分 */}
+          <div className="mb-8 bg-gray-50 dark:bg-gray-900 rounded-lg p-6">
+            <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
+              文档信息
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                  文本类型
+                </p>
+                <p className="text-base text-gray-800 dark:text-white">
+                  {translationPlan.contentType}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                  风格
+                </p>
+                <p className="text-base text-gray-800 dark:text-white">
+                  {translationPlan.style}
+                </p>
+              </div>
+              <div className="md:col-span-2">
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                  专业领域
+                </p>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {translationPlan.specializedKnowledge.map(
+                    (knowledge, index) => (
+                      <span
+                        key={index}
+                        className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs rounded-full"
+                      >
+                        {knowledge}
+                      </span>
+                    )
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {Object.keys(translationPlan.keyTerms).length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-3">
+                  关键术语对照表
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-100 dark:bg-gray-800">
+                      <tr>
+                        <th
+                          scope="col"
+                          className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                        >
+                          英文
+                        </th>
+                        <th
+                          scope="col"
+                          className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                        >
+                          中文
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
+                      {Object.entries(translationPlan.keyTerms).map(
+                        ([en, zh], index) => (
+                          <tr
+                            key={index}
+                            className={
+                              index % 2 === 0
+                                ? "bg-white dark:bg-gray-900"
+                                : "bg-gray-50 dark:bg-gray-800"
+                            }
+                          >
+                            <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                              {en}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                              {zh}
+                            </td>
+                          </tr>
+                        )
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 翻译内容部分 */}
+          <div>
+            <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
+              译文内容
+            </h3>
+            <div className="prose dark:prose-invert prose-headings:my-4 prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 max-w-none overflow-auto bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {finalTranslation}
+              </ReactMarkdown>
+            </div>
           </div>
         </div>
       );
