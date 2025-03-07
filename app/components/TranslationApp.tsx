@@ -5,6 +5,7 @@ import FileUploader from "./FileUploader";
 import LinkInput from "./LinkInput";
 import DropZone from "./DropZone";
 import UploadStatus from "./UploadStatus";
+import TranslationProcess from "./TranslationProcess";
 
 export default function TranslationApp() {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
@@ -12,29 +13,56 @@ export default function TranslationApp() {
   const [activeTab, setActiveTab] = useState<"upload" | "link" | "drop">(
     "upload"
   );
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [manualContent, setManualContent] = useState<string | null>(null);
 
   // 处理文件上传
   const handleFileSelect = (files: File[]) => {
     setUploadedFiles((prev) => [...prev, ...files]);
     setTranslationUrl(null);
+    setManualContent(null);
   };
 
   // 处理链接提交
   const handleLinkSubmit = (url: string) => {
     setTranslationUrl(url);
     setUploadedFiles([]);
+    setManualContent(null);
   };
 
   // 处理文件拖放
   const handleFilesDrop = (files: File[]) => {
     setUploadedFiles((prev) => [...prev, ...files]);
     setTranslationUrl(null);
+    setManualContent(null);
   };
 
   // 移除上传的文件
   const handleRemoveFile = (index: number) => {
     setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
   };
+
+  // 开始翻译
+  const startTranslation = () => {
+    setIsTranslating(true);
+  };
+
+  // 返回上传界面
+  const handleBack = () => {
+    setIsTranslating(false);
+  };
+
+  // 如果正在翻译，显示翻译处理页面
+  if (isTranslating) {
+    return (
+      <TranslationProcess
+        content={manualContent}
+        url={translationUrl}
+        files={uploadedFiles}
+        onBack={handleBack}
+      />
+    );
+  }
 
   return (
     <div className="w-full max-w-4xl mx-auto rounded-xl bg-white dark:bg-gray-800 shadow-lg p-8">
@@ -92,7 +120,17 @@ export default function TranslationApp() {
 
       {/* 上传状态 */}
       {uploadedFiles.length > 0 && (
-        <UploadStatus files={uploadedFiles} onRemove={handleRemoveFile} />
+        <div>
+          <UploadStatus files={uploadedFiles} onRemove={handleRemoveFile} />
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={startTranslation}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              开始翻译
+            </button>
+          </div>
+        </div>
       )}
 
       {/* 链接状态 */}
@@ -148,10 +186,38 @@ export default function TranslationApp() {
             </div>
           </div>
           <div className="mt-4 flex justify-end">
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+            <button
+              onClick={startTranslation}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
               开始翻译
             </button>
           </div>
+        </div>
+      )}
+
+      {/* 直接输入文本选项 */}
+      {!uploadedFiles.length && !translationUrl && (
+        <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-3">
+            直接输入文本
+          </h3>
+          <textarea
+            className="w-full h-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            placeholder="在此处粘贴需要翻译的文本..."
+            value={manualContent || ""}
+            onChange={(e) => setManualContent(e.target.value)}
+          ></textarea>
+          {manualContent && (
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={startTranslation}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                开始翻译
+              </button>
+            </div>
+          )}
         </div>
       )}
 
