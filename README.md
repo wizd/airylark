@@ -1,5 +1,19 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## 支持的输入类型
+
+### 文件类型
+
+- PDF 文档 (.pdf)
+- Word 文档 (.doc, .docx)
+- 文本文件 (.txt)
+- Markdown 文件 (.md)
+
+### 文本输入
+
+- 直接粘贴文本内容
+- 网页链接 (http/https URL)
+
 ## Getting Started
 
 First, run the development server:
