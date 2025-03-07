@@ -22,6 +22,16 @@ export default function TranslationQualityEvaluator({
     score: number;
     comments: string[];
     segmentScores: number[];
+    segmentFeedbacks?: {
+      segmentIndex: number;
+      issues: {
+        type: string;
+        description: string;
+        originalText: string;
+        translatedText: string;
+        suggestion: string;
+      }[];
+    }[];
   } | null>(null);
 
   // 加载状态
@@ -111,7 +121,8 @@ export default function TranslationQualityEvaluator({
       setEvaluationResults({
         score: result.score,
         comments: result.comments,
-        segmentScores: result.segmentScores
+        segmentScores: result.segmentScores,
+        segmentFeedbacks: result.segmentFeedbacks
       });
     } catch (error) {
       console.error("评估失败:", error);
@@ -175,6 +186,7 @@ export default function TranslationQualityEvaluator({
                 <li>请在左侧输入原文，右侧输入译文</li>
                 <li>系统将自动分析翻译质量并给出评分和建议</li>
                 <li>评分标准包括准确性、流畅度、术语一致性等多个维度</li>
+                <li>评估结果将指出具体问题所在的句子，并提供改进建议</li>
                 <li>建议每次评估的文本不超过5000字</li>
               </ul>
             </div>
@@ -341,6 +353,67 @@ export default function TranslationQualityEvaluator({
                           {extractSegmentContent(translatedSegment)}
                         </p>
                       </div>
+
+                      {/* 段落问题和建议 */}
+                      {evaluationResults?.segmentFeedbacks?.find(
+                        (feedback) => feedback.segmentIndex === index
+                      ) && (
+                        <div className="mt-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+                          <h5 className="text-sm font-medium text-yellow-800 dark:text-yellow-300 mb-2">
+                            翻译问题与建议
+                          </h5>
+                          <div className="space-y-3">
+                            {evaluationResults.segmentFeedbacks
+                              .find(
+                                (feedback) => feedback.segmentIndex === index
+                              )
+                              ?.issues.map((issue, issueIndex) => (
+                                <div key={issueIndex} className="text-sm">
+                                  <div className="flex items-start mb-1">
+                                    <span className="inline-block w-5 h-5 flex-shrink-0 bg-yellow-200 dark:bg-yellow-800 rounded-full text-yellow-800 dark:text-yellow-200 text-xs font-medium flex items-center justify-center mr-2 mt-0.5">
+                                      {issueIndex + 1}
+                                    </span>
+                                    <div>
+                                      <span className="font-medium text-yellow-800 dark:text-yellow-300">
+                                        {issue.type}：
+                                      </span>
+                                      <span className="text-gray-700 dark:text-gray-300">
+                                        {issue.description}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="ml-7 mb-1">
+                                    <div className="mb-1">
+                                      <span className="text-gray-600 dark:text-gray-400 font-medium">
+                                        原文：
+                                      </span>
+                                      <span className="text-gray-800 dark:text-gray-200">
+                                        &ldquo;{issue.originalText}&rdquo;
+                                      </span>
+                                    </div>
+                                    <div className="mb-1">
+                                      <span className="text-gray-600 dark:text-gray-400 font-medium">
+                                        译文：
+                                      </span>
+                                      <span className="text-gray-800 dark:text-gray-200">
+                                        &ldquo;{issue.translatedText}&rdquo;
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-green-600 dark:text-green-400 font-medium">
+                                        建议：
+                                      </span>
+                                      <span className="text-green-700 dark:text-green-300">
+                                        {issue.suggestion}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
