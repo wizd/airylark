@@ -1,3 +1,5 @@
+# AiryLark
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## 支持的输入类型
@@ -117,3 +119,9 @@ docker-compose down
 - [学习 Next.js](https://nextjs.org/learn) - 一个交互式 Next.js 教程。
 
 您可以查看 [Next.js GitHub 仓库](https://github.com/vercel/next.js) - 欢迎您的反馈和贡献！
+
+## 许可证
+
+本项目使用 [Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)](LICENSE) 进行许可。
+
+该许可证允许他人自由地分享和改编本项目，但必须保留原作者署名，且不得用于商业目的。详细条款请参阅[LICENSE](LICENSE)文件。
