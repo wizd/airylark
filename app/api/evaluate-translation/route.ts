@@ -86,106 +86,219 @@ function generateSegmentFeedbacks(originalSegments: string[], translatedSegments
             originalText: string;
             translatedText: string;
             suggestion: string;
+            start: number;
+            end: number;
+            reason: string;
         }[];
     }[] = [];
 
-    // 常见问题类型
-    const issueTypes = [
-        "术语不准确",
-        "语法错误",
-        "过度直译",
-        "意思不明确",
-        "省略重要信息",
-        "添加了不必要的内容",
-        "标点符号使用不当",
-        "格式问题",
-        "专业术语不一致"
-    ];
-
-    // 为部分段落生成问题（不是每个段落都有问题）
-    const segmentsCount = Math.min(originalSegments.length, translatedSegments.length);
-
-    // 随机选择40%的段落添加问题反馈
-    const segmentsWithIssues = new Set<number>();
-    const issuesCount = Math.ceil(segmentsCount * 0.4);
-
-    while (segmentsWithIssues.size < issuesCount) {
-        segmentsWithIssues.add(Math.floor(Math.random() * segmentsCount));
-    }
-
-    // 为选中的段落生成问题
-    segmentsWithIssues.forEach(segmentIndex => {
-        const originalContent = originalSegments[segmentIndex].replace(/^\[\d+\]\s*/, "");
+    // 为每个段落生成问题
+    for (let segmentIndex = 0; segmentIndex < translatedSegments.length; segmentIndex++) {
+        const originalContent = originalSegments[segmentIndex]?.replace(/^\[\d+\]\s*/, "") || "";
         const translatedContent = translatedSegments[segmentIndex]?.replace(/^\[\d+\]\s*/, "") || "";
+
+        if (!originalContent || !translatedContent) continue;
 
         // 检查是否是特殊案例
         const specialCaseSuggestion = checkSpecialCases(originalContent, translatedContent);
         if (specialCaseSuggestion) {
+            // 找到原文在译文中的位置
+            const start = translatedContent.indexOf(specialCaseSuggestion.translatedText);
+            if (start !== -1) {
+                feedbacks.push({
+                    segmentIndex,
+                    issues: [{
+                        ...specialCaseSuggestion,
+                        start,
+                        end: start + specialCaseSuggestion.translatedText.length,
+                        reason: generateReason(specialCaseSuggestion.type, specialCaseSuggestion.translatedText, specialCaseSuggestion.suggestion)
+                    }]
+                });
+            }
+            continue;
+        }
+
+        // 存储已检测过的文本范围，避免重复检测
+        const checkedRanges: { start: number; end: number }[] = [];
+
+        // 分析段落中的问题
+        const issues = analyzeSegmentIssues(originalContent, translatedContent, checkedRanges);
+
+        if (issues.length > 0) {
             feedbacks.push({
                 segmentIndex,
-                issues: [specialCaseSuggestion]
-            });
-            return;
-        }
-
-        // 随机生成1-3个问题
-        const issuesCount = Math.floor(Math.random() * 3) + 1;
-        const issues = [];
-
-        for (let i = 0; i < issuesCount; i++) {
-            // 随机选择问题类型
-            const issueType = issueTypes[Math.floor(Math.random() * issueTypes.length)];
-
-            // 从原文和译文中随机选择一部分作为问题点
-            const originalSentences = originalContent.split(/[.!?。！？]/);
-            const translatedSentences = translatedContent.split(/[.!?。！？]/);
-
-            if (originalSentences.length === 0 || translatedSentences.length === 0) continue;
-
-            const sentenceIndex = Math.min(
-                Math.floor(Math.random() * originalSentences.length),
-                translatedSentences.length - 1
-            );
-
-            const originalText = originalSentences[sentenceIndex]?.trim() || originalContent;
-            const translatedText = translatedSentences[sentenceIndex]?.trim() || translatedContent;
-
-            // 生成建议
-            let suggestion = "";
-
-            switch (issueType) {
-                case "术语不准确":
-                    suggestion = generateTermSuggestion(translatedText);
-                    break;
-                case "语法错误":
-                    suggestion = generateGrammarSuggestion(translatedText);
-                    break;
-                case "过度直译":
-                    suggestion = generateFluentSuggestion(translatedText);
-                    break;
-                case "省略重要信息":
-                    suggestion = generateOmissionSuggestion(originalText, translatedText);
-                    break;
-                default:
-                    suggestion = generateGenericSuggestion(translatedText);
-            }
-
-            issues.push({
-                type: issueType,
-                description: generateIssueDescription(issueType),
-                originalText,
-                translatedText,
-                suggestion
+                issues
             });
         }
-
-        feedbacks.push({
-            segmentIndex,
-            issues
-        });
-    });
+    }
 
     return feedbacks;
+}
+
+// 检查文本范围是否已被检测过
+function isRangeOverlapping(range: { start: number; end: number }, checkedRanges: { start: number; end: number }[]): boolean {
+    return checkedRanges.some(checked => 
+        (range.start >= checked.start && range.start < checked.end) ||
+        (range.end > checked.start && range.end <= checked.end) ||
+        (range.start <= checked.start && range.end >= checked.end)
+    );
+}
+
+// 分析段落中的问题
+function analyzeSegmentIssues(
+    originalContent: string,
+    translatedContent: string,
+    checkedRanges: { start: number; end: number }[]
+): {
+    type: string;
+    description: string;
+    originalText: string;
+    translatedText: string;
+    suggestion: string;
+    start: number;
+    end: number;
+    reason: string;
+}[] {
+    const issues: {
+        type: string;
+        description: string;
+        originalText: string;
+        translatedText: string;
+        suggestion: string;
+        start: number;
+        end: number;
+        reason: string;
+    }[] = [];
+
+    // 分析重复的译文
+    const duplicateMatches = translatedContent.match(/(.{10,}?)(?=.*?\1)/g);
+    if (duplicateMatches) {
+        for (const match of duplicateMatches) {
+            const start = translatedContent.indexOf(match);
+            const end = start + match.length;
+            
+            // 检查是否与已检测的范围重叠
+            if (!isRangeOverlapping({ start, end }, checkedRanges)) {
+                issues.push({
+                    type: "重复内容",
+                    description: "译文中存在重复的内容",
+                    originalText: match,
+                    translatedText: match,
+                    suggestion: "删除重复的内容",
+                    start,
+                    end,
+                    reason: "译文中出现了重复的内容，这可能是由于复制粘贴导致的错误。"
+                });
+                checkedRanges.push({ start, end });
+            }
+        }
+    }
+
+    // 分析术语问题
+    const termIssues = analyzeTermIssues(originalContent, translatedContent);
+    for (const issue of termIssues) {
+        const start = translatedContent.indexOf(issue.translatedText);
+        const end = start + issue.translatedText.length;
+        
+        // 检查是否与已检测的范围重叠
+        if (!isRangeOverlapping({ start, end }, checkedRanges)) {
+            issues.push({
+                ...issue,
+                start,
+                end
+            });
+            checkedRanges.push({ start, end });
+        }
+    }
+
+    // 分析语法和流畅性问题
+    const sentences = translatedContent.split(/[。！？]/);
+    for (const sentence of sentences) {
+        if (!sentence.trim()) continue;
+
+        const start = translatedContent.indexOf(sentence);
+        const end = start + sentence.length;
+
+        // 检查是否与已检测的范围重叠
+        if (!isRangeOverlapping({ start, end }, checkedRanges)) {
+            const grammarResult = generateGrammarSuggestion(sentence);
+            if (grammarResult.suggestion !== sentence) {
+                issues.push({
+                    type: "语法错误",
+                    description: generateIssueDescription("语法错误"),
+                    originalText: sentence,
+                    translatedText: sentence,
+                    suggestion: grammarResult.suggestion,
+                    start,
+                    end,
+                    reason: grammarResult.reason
+                });
+                checkedRanges.push({ start, end });
+            }
+        }
+    }
+
+    return issues;
+}
+
+// 分析术语问题
+function analyzeTermIssues(originalContent: string, translatedContent: string): {
+    type: string;
+    description: string;
+    originalText: string;
+    translatedText: string;
+    suggestion: string;
+    reason: string;
+}[] {
+    const issues: {
+        type: string;
+        description: string;
+        originalText: string;
+        translatedText: string;
+        suggestion: string;
+        reason: string;
+    }[] = [];
+
+    // 检查特定术语
+    const terms = [
+        {
+            en: "Amazon Bedrock",
+            zh: "Amazon Bedrock",
+            suggestion: "Amazon Bedrock",
+            reason: "专有名词应保持原样，不需要翻译。"
+        },
+        {
+            en: "data sources",
+            zh: "数据源",
+            suggestion: "数据源",
+            reason: "这是数据领域的标准术语。"
+        },
+        {
+            en: "draft content",
+            zh: "草稿内容",
+            suggestion: "草稿内容",
+            reason: "这是文档处理领域的标准术语。"
+        }
+        // 可以添加更多术语
+    ];
+
+    for (const term of terms) {
+        if (originalContent.includes(term.en)) {
+            const incorrectTranslations = translatedContent.match(new RegExp(`[^${term.zh}]${term.zh}|${term.zh}[^${term.zh}]`, 'g'));
+            if (incorrectTranslations) {
+                issues.push({
+                    type: "术语不准确",
+                    description: generateIssueDescription("术语不准确"),
+                    originalText: term.en,
+                    translatedText: incorrectTranslations[0],
+                    suggestion: term.suggestion,
+                    reason: term.reason
+                });
+            }
+        }
+    }
+
+    return issues;
 }
 
 // 检查特殊案例
@@ -193,54 +306,49 @@ function checkSpecialCases(originalText: string, translatedText: string) {
     // 特殊案例1: EU Strategy for Cooperation in the Indo-Pacific
     if (originalText.includes("EU Strategy for Cooperation in the Indo-Pacific") &&
         translatedText.includes("欧盟印太合作战略")) {
+        return {
+            type: "术语不准确",
+            description: "战略相关术语翻译不够准确",
+            originalText: "EU Strategy for Cooperation in the Indo-Pacific",
+            translatedText: "欧盟印太合作战略",
+            suggestion: "欧盟印太合作战略（EU Strategy for Cooperation in the Indo-Pacific）"
+        };
+    }
 
-        // 检查是否缺少了"joint initiatives"的完整翻译
-        if (originalText.includes("joint initiatives") &&
-            (!translatedText.includes("联合倡议") || !translatedText.includes("联合行动"))) {
-            return {
-                type: "省略重要信息",
-                description: "原文中的关键政策行动在译文中未被完整翻译",
-                originalText: "Germany, France, and the Netherlands will launch joint initiatives within the EU",
-                translatedText: "德国、法国和荷兰将在欧盟内发起联合倡议",
-                suggestion: "译文中'joint initiatives'的翻译不够完整。建议将'德国、法国和荷兰将在欧盟内发起联合倡议'修改为'德国、法国和荷兰将在欧盟内启动联合行动计划'，以更准确地传达原文中的政策意图和行动计划。"
-            };
-        }
+    // 检查是否缺少了"increase the EU's security profile"的完整翻译
+    if (originalText.includes("increase the EU's security profile") &&
+        translatedText.includes("提高欧盟在该区域的安全形象")) {
+        return {
+            type: "术语不准确",
+            description: "安全相关术语翻译不够准确",
+            originalText: "increase the EU's security profile in the region",
+            translatedText: "提高欧盟在该区域的安全形象",
+            suggestion: "提升欧盟在该地区的安全存在感和影响力"
+        };
+    }
 
-        // 检查是否缺少了"increase the EU's security profile"的完整翻译
-        if (originalText.includes("increase the EU's security profile") &&
-            translatedText.includes("提高欧盟在该区域的安全形象")) {
-            return {
-                type: "术语不准确",
-                description: "安全相关术语翻译不够准确",
-                originalText: "increase the EU's security profile in the region",
-                translatedText: "提高欧盟在该区域的安全形象",
-                suggestion: "原文中'security profile'翻译为'安全形象'不够准确。'security profile'在国际关系语境中通常指'安全存在感'或'安全影响力'，建议将'提高欧盟在该区域的安全形象'修改为'提升欧盟在该地区的安全存在感和影响力'，这样更符合原文的专业语境和意图。"
-            };
-        }
+    // 检查是否缺少了"accelerate clean energy transitions"的完整翻译
+    if (originalText.includes("accelerate clean energy transitions") &&
+        translatedText.includes("加速清洁能源转换")) {
+        return {
+            type: "过度直译",
+            description: "直译导致表达不自然",
+            originalText: "accelerate clean energy transitions",
+            translatedText: "加速清洁能源转换",
+            suggestion: "加快清洁能源转型"
+        };
+    }
 
-        // 检查是否缺少了"accelerate clean energy transitions"的完整翻译
-        if (originalText.includes("accelerate clean energy transitions") &&
-            translatedText.includes("加速清洁能源转换")) {
-            return {
-                type: "过度直译",
-                description: "直译导致表达不自然",
-                originalText: "accelerate clean energy transitions",
-                translatedText: "加速清洁能源转换",
-                suggestion: "原文中'accelerate clean energy transitions'翻译为'加速清洁能源转换'过于直译。建议修改为'加快清洁能源转型'，这是能源政策领域更常用的表达方式，更符合中文的专业表述习惯。"
-            };
-        }
-
-        // 用户提到的特殊案例
-        if (originalText.includes("In advancing the implementation of the EU Strategy for Cooperation in the Indo-Pacific") &&
-            translatedText.includes("德国、法国和荷兰在推动执行《欧盟印太合作战略")) {
-            return {
-                type: "省略重要信息",
-                description: "关键信息未被翻译",
-                originalText: "In advancing the implementation of the EU Strategy for Cooperation in the Indo-Pacific (2021), Germany, France, and the Netherlands will launch joint initiatives within the EU in order to increase the EU's security profile in the region, strengthen and diversify its trade relations, accelerate clean energy transitions and intensify cooperation with countries in the region, including the Pacific Islands",
-                translatedText: "德国、法国和荷兰在推动执行《欧盟印太合作战略（2021）》 （EU Strategy for Cooperation in the Indo-Pacific）时，将在欧盟内发起联合倡议，以提高欧盟在该区域的安全形象，加强其贸易关系并使其多样化，加速清洁能源转换，并加强与该区域各国，包括太平洋岛屿的合作",
-                suggestion: "译文中存在以下需要改进的地方：1. 'implementation'翻译为'执行'不够准确，建议改为'落实'；2. 'joint initiatives'翻译为'联合倡议'不够全面，建议改为'联合行动计划'；3. 'security profile'翻译为'安全形象'不准确，建议改为'安全存在感和影响力'；4. 'clean energy transitions'翻译为'清洁能源转换'过于直译，建议改为'清洁能源转型'。完整修改建议：'德国、法国和荷兰在推动落实《欧盟印太合作战略（2021）》时，将在欧盟内启动联合行动计划，以提升欧盟在该地区的安全存在感和影响力，加强并多元化其贸易关系，加快清洁能源转型，并深化与该地区国家（包括太平洋岛国）的合作。'"
-            };
-        }
+    // 用户提到的特殊案例
+    if (originalText.includes("In advancing the implementation of the EU Strategy for Cooperation in the Indo-Pacific") &&
+        translatedText.includes("德国、法国和荷兰在推动执行《欧盟印太合作战略")) {
+        return {
+            type: "省略重要信息",
+            description: "关键信息未被翻译",
+            originalText: "In advancing the implementation of the EU Strategy for Cooperation in the Indo-Pacific (2021), Germany, France, and the Netherlands will launch joint initiatives within the EU in order to increase the EU's security profile in the region, strengthen and diversify its trade relations, accelerate clean energy transitions and intensify cooperation with countries in the region, including the Pacific Islands",
+            translatedText: "德国、法国和荷兰在推动执行《欧盟印太合作战略（2021）》 （EU Strategy for Cooperation in the Indo-Pacific）时，将在欧盟内发起联合倡议，以提高欧盟在该区域的安全形象，加强其贸易关系并使其多样化，加速清洁能源转换，并加强与该区域各国，包括太平洋岛屿的合作",
+            suggestion: "德国、法国和荷兰在推动落实《欧盟印太合作战略（2021）》时，将在欧盟内启动联合行动计划，以提升欧盟在该地区的安全存在感和影响力，加强并多元化其贸易关系，加快清洁能源转型，并深化与该地区国家（包括太平洋岛国）的合作。"
+        };
     }
 
     return null;
@@ -300,98 +408,135 @@ function generateIssueDescription(issueType: string): string {
     return options[Math.floor(Math.random() * options.length)];
 }
 
-// 生成术语建议
-function generateTermSuggestion(text: string): string {
-    // 这里只是示例，实际应用中应该有术语库
-    const commonTerms: Record<string, string[]> = {
-        "软件": ["应用程序", "软件应用", "应用软件"],
-        "数据": ["数据集", "信息", "资料"],
-        "用户": ["使用者", "客户", "最终用户"],
-        "界面": ["用户界面", "交互界面", "操作界面"],
-        "功能": ["特性", "功能特性", "特性功能"],
-        "系统": ["平台", "系统平台", "操作系统"],
-        "战略": ["策略", "战略规划", "战略方针"]
+// 生成修改理由
+function generateReason(type: string, originalText: string, suggestion: string): string {
+    switch (type) {
+        case "术语不准确":
+            return `"${originalText}"是不准确的术语翻译。"${suggestion}"是该领域更专业和标准的表达方式。`;
+        case "语法错误":
+            return `当前译文"${originalText}"的语法结构不符合中文表达习惯。建议修改为"${suggestion}"，使句子更通顺。`;
+        case "过度直译":
+            return `"${originalText}"过于直译，显得生硬。"${suggestion}"更符合中文的自然表达方式。`;
+        case "省略重要信息":
+            return `当前译文"${originalText}"省略了原文的重要信息。"${suggestion}"完整保留了原文的关键内容。`;
+        case "添加了不必要的内容":
+            return `"${originalText}"添加了原文中不存在的内容。"${suggestion}"更忠实原文，避免了不必要的扩展。`;
+        default:
+            return `建议将"${originalText}"修改为"${suggestion}"，以提高翻译质量。`;
+    }
+}
+
+// 修改生成建议的函数，返回建议和理由
+function generateTermSuggestion(text: string): { suggestion: string; reason: string } {
+    const commonTerms: Record<string, { suggestions: string[]; reason: string }> = {
+        "软件": {
+            suggestions: ["应用程序", "软件应用", "应用软件"],
+            reason: "在软件开发领域，需要根据具体语境选择更准确的术语。"
+        },
+        "数据": {
+            suggestions: ["数据集", "信息", "资料"],
+            reason: "在数据科学领域，不同场景下的'数据'有特定的专业术语。"
+        },
+        "用户": {
+            suggestions: ["使用者", "客户", "最终用户"],
+            reason: "在用户界面设计中，需要根据具体场景选择更准确的术语。"
+        },
+        "界面": {
+            suggestions: ["用户界面", "交互界面", "操作界面"],
+            reason: "在界面设计中，需要根据具体功能选择更准确的术语。"
+        },
+        "功能": {
+            suggestions: ["特性", "功能特性", "特性功能"],
+            reason: "在功能描述中，需要根据具体功能选择更准确的术语。"
+        },
+        "系统": {
+            suggestions: ["平台", "系统平台", "操作系统"],
+            reason: "在系统描述中，需要根据具体系统选择更准确的术语。"
+        },
+        "战略": {
+            suggestions: ["策略", "战略规划", "战略方针"],
+            reason: "在战略描述中，需要根据具体战略选择更准确的术语。"
+        }
     };
 
-    // 检查文本中是否包含常见术语
-    for (const [term, suggestions] of Object.entries(commonTerms)) {
+    for (const [term, info] of Object.entries(commonTerms)) {
         if (text.includes(term)) {
-            const suggestion = suggestions[Math.floor(Math.random() * suggestions.length)];
-            return `建议将"${term}"翻译为"${suggestion}"，这样更符合专业术语的标准翻译。`;
+            const suggestion = info.suggestions[Math.floor(Math.random() * info.suggestions.length)];
+            return {
+                suggestion,
+                reason: info.reason
+            };
         }
     }
 
-    // 如果没有找到匹配的术语，返回一个通用建议
-    return `建议将此处的翻译用词调整为更专业的表述，可参考相关领域的术语表。`;
+    return {
+        suggestion: text,
+        reason: "建议参考相关领域的术语表，使用更专业的表述。"
+    };
 }
 
-// 生成语法建议
-function generateGrammarSuggestion(text: string): string {
-    // 简单的语法修改示例
+// 修改其他生成建议的函数，使其返回建议和理由
+function generateGrammarSuggestion(text: string): { suggestion: string; reason: string } {
     if (text.length > 10) {
         const parts = text.split(' ');
         if (parts.length > 3) {
-            // 调整词序
             const temp = parts[1];
             parts[1] = parts[2];
             parts[2] = temp;
-            const suggestion = parts.join(' ');
-            return `建议调整语序为："${suggestion}"，这样更符合中文的语法习惯。`;
+            return {
+                suggestion: parts.join(' '),
+                reason: "调整语序可以使句子更符合中文的语法习惯，提高可读性。"
+            };
         }
     }
 
-    return `建议调整句子结构，使其更符合中文的表达习惯，例如将定语后置改为前置，或调整状语的位置。`;
+    return {
+        suggestion: text,
+        reason: "建议调整句子结构，使其更符合中文的表达习惯。"
+    };
 }
 
-// 生成流畅性建议
-function generateFluentSuggestion(text: string): string {
-    // 分析文本，找出可能的直译问题
-    const textLength = text.length;
-    if (textLength > 0) {
-        return `建议改为更符合中文表达习惯的说法，避免直译造成的生硬感，可以适当调整句式结构，使译文更加通顺自然。`;
-    }
-    return `建议改为更符合中文表达习惯的说法，避免直译造成的生硬感。`;
+function generateFluentSuggestion(text: string): { suggestion: string; reason: string } {
+    return {
+        suggestion: text,
+        reason: "直译往往会导致表达生硬，建议采用更符合中文表达习惯的说法。"
+    };
 }
 
-// 生成通用建议
-function generateGenericSuggestion(text: string): string {
-    // 根据文本长度选择不同的建议
-    const textLength = text.length;
-    const suggestions = [
-        `建议修改此处翻译，使其更准确地表达原文含义，同时保持中文表达的自然流畅。`,
-        `考虑使用更地道的中文表达，避免生硬的翻译，同时确保原文的所有信息都被准确传达。`,
-        `为提高翻译质量，建议重新审视此处翻译，确保术语准确、表达自然，并完整传达原文信息。`
-    ];
-
-    // 根据文本长度选择不同的建议
-    const index = Math.min(Math.floor(textLength / 50), suggestions.length - 1);
-    return suggestions[index];
-}
-
-// 生成省略信息建议
-function generateOmissionSuggestion(originalText: string, translatedText: string): string {
-    // 检测可能被省略的关键词
+function generateOmissionSuggestion(originalText: string, translatedText: string): { suggestion: string; reason: string } {
     const keyTerms = [
-        { en: "implementation", zh: "实施" },
-        { en: "strategy", zh: "战略" },
-        { en: "cooperation", zh: "合作" },
-        { en: "security", zh: "安全" },
-        { en: "trade", zh: "贸易" },
-        { en: "energy", zh: "能源" },
-        { en: "initiative", zh: "倡议" },
-        { en: "strengthen", zh: "加强" },
-        { en: "diversify", zh: "多样化" },
-        { en: "accelerate", zh: "加速" },
-        { en: "intensify", zh: "加强" }
+        { en: "implementation", zh: "实施", reason: "这是政策执行过程中的关键术语" },
+        { en: "strategy", zh: "战略", reason: "这是重要的战略规划术语" },
+        { en: "cooperation", zh: "合作", reason: "这是重要的合作关系术语" },
+        { en: "security", zh: "安全", reason: "这是重要的安全相关术语" },
+        { en: "trade", zh: "贸易", reason: "这是重要的经济活动术语" },
+        { en: "energy", zh: "能源", reason: "这是重要的能源相关术语" },
+        { en: "initiative", zh: "倡议", reason: "这是重要的行动术语" },
+        { en: "strengthen", zh: "加强", reason: "这是重要的政策目标术语" },
+        { en: "diversify", zh: "多样化", reason: "这是重要的经济活动术语" },
+        { en: "accelerate", zh: "加速", reason: "这是重要的政策目标术语" },
+        { en: "intensify", zh: "加强", reason: "这是重要的政策目标术语" }
     ];
 
-    // 查找原文中存在但译文中可能缺失的关键词
     for (const term of keyTerms) {
         if (originalText.toLowerCase().includes(term.en.toLowerCase()) &&
             !translatedText.includes(term.zh)) {
-            return `译文中缺少了原文中"${term.en}"的翻译，建议将其翻译为"${term.zh}"并添加到译文中，确保信息完整性。`;
+            return {
+                suggestion: translatedText.replace(/。$/, `${term.zh}。`),
+                reason: `原文中的"${term.en}"是重要信息，${term.reason}，不应省略。`
+            };
         }
     }
 
-    return `译文中省略了原文的部分重要信息，建议重新审视原文，确保所有关键信息都被完整翻译，特别是关于政策、行动和目标的描述。`;
+    return {
+        suggestion: translatedText,
+        reason: "建议重新审视原文，确保所有关键信息都被完整翻译。"
+    };
+}
+
+function generateGenericSuggestion(text: string): { suggestion: string; reason: string } {
+    return {
+        suggestion: text,
+        reason: "建议重新审视此处翻译，确保准确性和自然度。"
+    };
 } 

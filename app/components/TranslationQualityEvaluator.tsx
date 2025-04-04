@@ -1,9 +1,90 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import React from "react";
 
 interface TranslationQualityEvaluatorProps {
   onBack: () => void;
+}
+
+interface Suggestion {
+  start: number;
+  end: number;
+  originalText: string;
+  suggestedText: string;
+  type: string;
+  description: string;
+  reason: string;
+}
+
+interface AnnotatedTranslationProps {
+  text: string;
+  suggestions: Suggestion[];
+}
+
+function AnnotatedTranslation({ text, suggestions }: AnnotatedTranslationProps) {
+  // 将建议按位置排序
+  const sortedSuggestions = [...suggestions].sort((a, b) => a.start - b.start);
+  
+  // 如果没有建议，直接显示原文
+  if (sortedSuggestions.length === 0) {
+    return <span>{text}</span>;
+  }
+
+  // 构建带有标注的文本
+  const elements: React.ReactNode[] = [];
+  let lastIndex = 0;
+
+  sortedSuggestions.forEach((suggestion, index) => {
+    // 添加建议前的文本
+    if (suggestion.start > lastIndex) {
+      elements.push(
+        <span key={`text-${index}`}>
+          {text.substring(lastIndex, suggestion.start)}
+        </span>
+      );
+    }
+
+    // 创建一个包含删除和建议文本的组
+    const suggestionGroup = (
+      <span
+        key={`suggestion-group-${index}`}
+        className="group relative inline-block"
+      >
+        {/* 需要修改的文本（红色删除线） */}
+        <span
+          className="text-red-600 dark:text-red-400 line-through cursor-pointer"
+        >
+          {text.substring(suggestion.start, suggestion.end)}
+        </span>
+        {/* 建议的文本（绿色） */}
+        <span
+          className="text-green-600 dark:text-green-400 ml-1 cursor-pointer"
+        >
+          {suggestion.suggestedText}
+        </span>
+        {/* 悬浮提示（显示修改理由） */}
+        <span
+          className="absolute left-0 top-full mt-2 p-2 bg-yellow-100 dark:bg-yellow-900 text-yellow-900 dark:text-yellow-100 text-sm rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 whitespace-normal max-w-xs"
+        >
+          <span className="font-medium">{suggestion.type}：</span>
+          {suggestion.reason}
+        </span>
+      </span>
+    );
+
+    elements.push(suggestionGroup);
+    lastIndex = suggestion.end;
+  });
+
+  // 添加最后一个建议后的文本
+  if (lastIndex < text.length) {
+    elements.push(
+      <span key="text-end">{text.substring(lastIndex)}</span>
+    );
+  }
+
+  return <span className="relative">{elements}</span>;
 }
 
 export default function TranslationQualityEvaluator({
@@ -30,6 +111,9 @@ export default function TranslationQualityEvaluator({
         originalText: string;
         translatedText: string;
         suggestion: string;
+        start: number;
+        end: number;
+        reason: string;
       }[];
     }[];
   } | null>(null);
@@ -139,6 +223,12 @@ export default function TranslationQualityEvaluator({
     setOriginalSegments([]);
     setTranslatedSegments([]);
     setEvaluationResults(null);
+  };
+
+  // 重新评估
+  const handleReassess = () => {
+    setEvaluationResults(null);  // 只清空评估结果
+    startEvaluation();  // 重新开始评估
   };
 
   // 提取段落编号
@@ -350,65 +440,44 @@ export default function TranslationQualityEvaluator({
                       </div>
                       <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-300 dark:border-gray-600 min-h-[100px]">
                         <p className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                          {extractSegmentContent(translatedSegment)}
+                          <AnnotatedTranslation
+                            text={extractSegmentContent(translatedSegment)}
+                            suggestions={
+                              evaluationResults?.segmentFeedbacks
+                                ?.find((feedback) => feedback.segmentIndex === index)
+                                ?.issues.map((issue) => ({
+                                  start: issue.start,
+                                  end: issue.end,
+                                  originalText: issue.translatedText,
+                                  suggestedText: issue.suggestion,
+                                  type: issue.type,
+                                  description: issue.description,
+                                  reason: issue.reason
+                                })) || []
+                            }
+                          />
                         </p>
                       </div>
 
-                      {/* 段落问题和建议 */}
+                      {/* 评论显示 */}
                       {evaluationResults?.segmentFeedbacks?.find(
                         (feedback) => feedback.segmentIndex === index
                       ) && (
-                        <div className="mt-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-                          <h5 className="text-sm font-medium text-yellow-800 dark:text-yellow-300 mb-2">
-                            翻译问题与建议
-                          </h5>
-                          <div className="space-y-3">
+                        <div className="mt-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                          <div className="space-y-2">
                             {evaluationResults.segmentFeedbacks
-                              .find(
-                                (feedback) => feedback.segmentIndex === index
-                              )
+                              .find((feedback) => feedback.segmentIndex === index)
                               ?.issues.map((issue, issueIndex) => (
-                                <div key={issueIndex} className="text-sm">
-                                  <div className="flex items-start mb-1">
-                                    <span className="inline-block w-5 h-5 flex-shrink-0 bg-yellow-200 dark:bg-yellow-800 rounded-full text-yellow-800 dark:text-yellow-200 text-xs font-medium flex items-center justify-center mr-2 mt-0.5">
-                                      {issueIndex + 1}
-                                    </span>
-                                    <div>
-                                      <span className="font-medium text-yellow-800 dark:text-yellow-300">
-                                        {issue.type}：
-                                      </span>
-                                      <span className="text-gray-700 dark:text-gray-300">
-                                        {issue.description}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  <div className="ml-7 mb-1">
-                                    <div className="mb-1">
-                                      <span className="text-gray-600 dark:text-gray-400 font-medium">
-                                        原文：
-                                      </span>
-                                      <span className="text-gray-800 dark:text-gray-200">
-                                        &ldquo;{issue.originalText}&rdquo;
-                                      </span>
-                                    </div>
-                                    <div className="mb-1">
-                                      <span className="text-gray-600 dark:text-gray-400 font-medium">
-                                        译文：
-                                      </span>
-                                      <span className="text-gray-800 dark:text-gray-200">
-                                        &ldquo;{issue.translatedText}&rdquo;
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <span className="text-green-600 dark:text-green-400 font-medium">
-                                        建议：
-                                      </span>
-                                      <span className="text-green-700 dark:text-green-300">
-                                        {issue.suggestion}
-                                      </span>
-                                    </div>
-                                  </div>
+                                <div
+                                  key={issueIndex}
+                                  className="text-sm bg-blue-100 dark:bg-blue-900/30 p-2 rounded"
+                                >
+                                  <span className="font-medium text-blue-800 dark:text-blue-300">
+                                    {issue.type}：
+                                  </span>
+                                  <span className="text-gray-700 dark:text-gray-300">
+                                    {issue.description}
+                                  </span>
                                 </div>
                               ))}
                           </div>
@@ -423,10 +492,16 @@ export default function TranslationQualityEvaluator({
             {/* 操作按钮 */}
             <div className="mt-8 flex justify-center space-x-4">
               <button
-                onClick={handleClear}
+                onClick={handleReassess}
                 className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-lg font-semibold"
               >
                 重新评估
+              </button>
+              <button
+                onClick={handleClear}
+                className="px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-lg font-semibold"
+              >
+                清空内容
               </button>
             </div>
           </>
