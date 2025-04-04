@@ -19,10 +19,11 @@ interface Suggestion {
   reason: string;
   operations?: Array<{
     type: 'keep' | 'delete' | 'insert' | 'replace';
-    sourceStart: number;
-    sourceEnd: number;
-    targetStart: number;
-    targetEnd: number;
+    text?: string;
+    sourceStart?: number;
+    sourceEnd?: number;
+    targetStart?: number;
+    targetEnd?: number;
     content?: string;
   }>;
 }
@@ -83,43 +84,99 @@ function AnnotatedTranslation({ text, suggestions }: AnnotatedTranslationProps) 
 
     // 显示修改建议
     const originalText = text.substring(suggestion.start, suggestion.end);
-    const diffText = calculateTextDiff(originalText, suggestion.suggestedText);
-
-    // 始终显示原始文本（带删除线）和修改后的文本（绿色）
-    elements.push(
-      <span
-        key={`suggestion-${index}`}
-        className="group relative inline-block"
-        onMouseEnter={() => setActiveSuggestion(suggestion)}
-        onMouseLeave={() => setActiveSuggestion(null)}
-      >
-        <span className="text-red-500 dark:text-red-400 line-through">
-          {originalText}
+    
+    // 检查是否使用新的行内差异机制
+    if (suggestion.operations && suggestion.operations.length > 0) {
+      // 使用行内差异机制显示精确的字词差异
+      elements.push(
+        <span
+          key={`suggestion-${index}`}
+          className="group relative inline-block"
+          onMouseEnter={() => setActiveSuggestion(suggestion)}
+          onMouseLeave={() => setActiveSuggestion(null)}
+        >
+          {suggestion.operations.map((op, opIndex) => {
+            if (op.type === 'keep' && op.text) {
+              return (
+                <span key={`op-${opIndex}`} className="text-gray-800 dark:text-gray-200">
+                  {op.text}
+                </span>
+              );
+            } else if (op.type === 'delete' && op.text) {
+              return (
+                <span key={`op-${opIndex}`} className="text-red-500 dark:text-red-400 line-through">
+                  {op.text}
+                </span>
+              );
+            } else if (op.type === 'insert' && op.text) {
+              return (
+                <span key={`op-${opIndex}`} className="text-green-600 dark:text-green-400">
+                  {op.text}
+                </span>
+              );
+            }
+            return null;
+          })}
+          
+          {/* 悬浮提示 */}
+          {activeSuggestion === suggestion && (
+            <div
+              className="absolute left-0 top-full mt-2 p-2 bg-yellow-100 dark:bg-yellow-900 text-sm rounded shadow-lg 
+                        z-10 whitespace-normal max-w-xs border border-yellow-200 dark:border-yellow-800"
+            >
+              <div className="font-medium mb-1 text-yellow-800 dark:text-yellow-200">
+                {suggestion.type}
+              </div>
+              <div className="text-yellow-700 dark:text-yellow-300">
+                {calculateTextDiff(originalText, suggestion.suggestedText)}
+              </div>
+              <div className="text-yellow-700 dark:text-yellow-300 mt-1">
+                {suggestion.reason}
+              </div>
+            </div>
+          )}
         </span>
-        {suggestion.suggestedText && (
-          <span className="text-green-600 dark:text-green-400 ml-1">
-            {suggestion.suggestedText}
+      );
+    } else {
+      // 使用原来的方式显示整个差异
+      const diffText = calculateTextDiff(originalText, suggestion.suggestedText);
+
+      // 始终显示原始文本（带删除线）和修改后的文本（绿色）
+      elements.push(
+        <span
+          key={`suggestion-${index}`}
+          className="group relative inline-block"
+          onMouseEnter={() => setActiveSuggestion(suggestion)}
+          onMouseLeave={() => setActiveSuggestion(null)}
+        >
+          <span className="text-red-500 dark:text-red-400 line-through">
+            {originalText}
           </span>
-        )}
-        {/* 悬浮提示 */}
-        {activeSuggestion === suggestion && (
-          <div
-            className="absolute left-0 top-full mt-2 p-2 bg-yellow-100 dark:bg-yellow-900 text-sm rounded shadow-lg 
-                      z-10 whitespace-normal max-w-xs border border-yellow-200 dark:border-yellow-800"
-          >
-            <div className="font-medium mb-1 text-yellow-800 dark:text-yellow-200">
-              {suggestion.type}
+          {suggestion.suggestedText && (
+            <span className="text-green-600 dark:text-green-400 ml-1">
+              {suggestion.suggestedText}
+            </span>
+          )}
+          {/* 悬浮提示 */}
+          {activeSuggestion === suggestion && (
+            <div
+              className="absolute left-0 top-full mt-2 p-2 bg-yellow-100 dark:bg-yellow-900 text-sm rounded shadow-lg 
+                        z-10 whitespace-normal max-w-xs border border-yellow-200 dark:border-yellow-800"
+            >
+              <div className="font-medium mb-1 text-yellow-800 dark:text-yellow-200">
+                {suggestion.type}
+              </div>
+              <div className="text-yellow-700 dark:text-yellow-300">
+                {diffText}
+              </div>
+              <div className="text-yellow-700 dark:text-yellow-300 mt-1">
+                {suggestion.reason}
+              </div>
             </div>
-            <div className="text-yellow-700 dark:text-yellow-300">
-              {diffText}
-            </div>
-            <div className="text-yellow-700 dark:text-yellow-300 mt-1">
-              {suggestion.reason}
-            </div>
-          </div>
-        )}
-      </span>
-    );
+          )}
+        </span>
+      );
+    }
 
     lastIndex = suggestion.end;
   });

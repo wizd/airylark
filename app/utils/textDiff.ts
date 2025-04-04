@@ -157,6 +157,26 @@ function mergeDifferences(diffs: Array<{
     return merged;
 }
 
+// 生成行内差异，保留共同部分，标记出具体的修改部分
+export function generateInlineDiff(originalText: string, suggestedText: string): Array<{
+    type: 'keep' | 'insert' | 'delete';
+    text: string;
+}> {
+    // 如果两个文本相同，直接返回保持状态的文本
+    if (originalText === suggestedText) {
+        return [{ type: 'keep', text: originalText }];
+    }
+    
+    // 获取两个文本的差异
+    const diffs = findMinimalDifferences(originalText, suggestedText);
+    
+    // 将差异合并为可以直接渲染的格式
+    return diffs.map(diff => ({
+        type: diff.type,
+        text: diff.text
+    }));
+}
+
 // 找出两段文本中真正不同的部分
 function findDifferences(text1: string, text2: string): {
     type: 'delete' | 'insert' | 'replace';
@@ -304,6 +324,10 @@ export function findSuggestionPositions(text: string, suggestions: Array<{
     type: string;
     description: string;
     reason: string;
+    operations?: Array<{
+        type: 'keep' | 'delete' | 'insert';
+        text: string;
+    }>;
 }> {
     console.log('开始处理建议，共有建议数量:', suggestions.length);
     
@@ -319,6 +343,10 @@ export function findSuggestionPositions(text: string, suggestions: Array<{
             console.log('❌ 建议被忽略: 在原文中未找到匹配位置');
             return null;
         }
+
+        // 生成行内差异，用于显示精确的字词修改
+        const inlineDiffs = generateInlineDiff(suggestion.translatedText, suggestion.suggestion);
+        console.log('行内差异:', inlineDiffs);
 
         // 使用findMinimalDifferences找出所有差异
         const diffs = findMinimalDifferences(suggestion.translatedText, suggestion.suggestion);
@@ -338,7 +366,7 @@ export function findSuggestionPositions(text: string, suggestions: Array<{
         
         // 计算相对结束位置：取所有 delete 操作的最大结束点
         const deleteChanges = changes.filter(c => c.type === 'delete');
-        let relativeEnd = relativeStart; // 默认等于开始位置
+        let relativeEnd = relativeStart;
         if (deleteChanges.length > 0) {
              relativeEnd = Math.max(...deleteChanges.map(c => c.position + c.text.length));
         }
@@ -387,7 +415,8 @@ export function findSuggestionPositions(text: string, suggestions: Array<{
             suggestedText,
             type: suggestion.type,
             description: suggestion.description,
-            reason: suggestion.reason
+            reason: suggestion.reason,
+            operations: inlineDiffs // 添加行内差异用于精确显示
         };
     }).filter((s): s is NonNullable<typeof s> => {
         if (!s) {
