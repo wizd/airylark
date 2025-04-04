@@ -84,13 +84,6 @@ export default function TranslationApp() {
   return (
     <div className="w-full max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
       <div className="p-8">
-        <h1 className="text-3xl font-bold text-center text-gray-800 dark:text-white mb-2">
-          智能翻译平台
-        </h1>
-        <p className="text-center text-gray-600 dark:text-gray-300 mb-8">
-          专业多语言翻译服务 | 高精度 | 高效率 | 智能校对
-        </p>
-
         {/* 选项卡 */}
         <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
           <button
