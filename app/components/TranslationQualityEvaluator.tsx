@@ -15,6 +15,14 @@ interface Suggestion {
   type: string;
   description: string;
   reason: string;
+  operations?: Array<{
+    type: 'keep' | 'delete' | 'insert' | 'replace';
+    sourceStart: number;
+    sourceEnd: number;
+    targetStart: number;
+    targetEnd: number;
+    content?: string;
+  }>;
 }
 
 interface AnnotatedTranslationProps {
@@ -23,8 +31,27 @@ interface AnnotatedTranslationProps {
 }
 
 function AnnotatedTranslation({ text, suggestions }: AnnotatedTranslationProps) {
-  // 将建议按位置排序
-  const sortedSuggestions = [...suggestions].sort((a, b) => a.start - b.start);
+  // 将建议按位置排序，并对重叠的建议进行合并
+  const sortedSuggestions = [...suggestions]
+    .sort((a, b) => a.start - b.start)
+    .reduce((acc, curr) => {
+      // 检查是否有重叠的建议
+      const overlap = acc.find(s => 
+        (curr.start >= s.start && curr.start <= s.end) ||
+        (curr.end >= s.start && curr.end <= s.end)
+      );
+      
+      if (overlap) {
+        // 如果是相同类型的问题，合并它们
+        if (overlap.type === curr.type) {
+          overlap.end = Math.max(overlap.end, curr.end);
+          overlap.reason = `${overlap.reason}; ${curr.reason}`;
+        }
+      } else {
+        acc.push(curr);
+      }
+      return acc;
+    }, [] as Suggestion[]);
   
   // 如果没有建议，直接显示原文
   if (sortedSuggestions.length === 0) {
@@ -45,37 +72,43 @@ function AnnotatedTranslation({ text, suggestions }: AnnotatedTranslationProps) 
       );
     }
 
-    // 创建一个包含删除和建议文本的组
-    const suggestionGroup = (
+    // 根据建议类型使用不同的样式
+    const getStyleForType = (type: string) => {
+      switch (type.toLowerCase()) {
+        case '术语不准确':
+          return 'bg-yellow-200 dark:bg-yellow-900 text-yellow-900 dark:text-yellow-100';
+        case '语法错误':
+          return 'bg-red-200 dark:bg-red-900 text-red-900 dark:text-red-100';
+        case '表达不准确':
+          return 'bg-orange-200 dark:bg-orange-900 text-orange-900 dark:text-orange-100';
+        default:
+          return 'bg-blue-200 dark:bg-blue-900 text-blue-900 dark:text-blue-100';
+      }
+    };
+
+    elements.push(
       <span
-        key={`suggestion-group-${index}`}
-        className="group relative inline-block bg-yellow-50 dark:bg-yellow-900/30 px-1 rounded mx-0.5"
+        key={`suggestion-${index}`}
+        className={`group relative inline-block px-1 rounded mx-0.5 cursor-help ${getStyleForType(suggestion.type)}`}
       >
-        {/* 需要修改的文本（红色删除线） */}
+        {text.substring(suggestion.start, suggestion.end)}
+        {/* 悬浮提示 */}
         <span
-          className="text-red-600 dark:text-red-400 line-through cursor-pointer"
+          className="absolute left-0 top-full mt-2 p-2 bg-white dark:bg-gray-800 text-sm rounded shadow-lg 
+                     opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 whitespace-normal 
+                     max-w-xs border border-gray-200 dark:border-gray-700"
         >
-          {text.substring(suggestion.start, suggestion.end)}
-        </span>
-        {/* 建议的文本（绿色） */}
-        {suggestion.suggestedText && (
-          <span
-            className="text-green-600 dark:text-green-400 ml-1 cursor-pointer"
-          >
-            {'→ '}{suggestion.suggestedText}
-          </span>
-        )}
-        {/* 悬浮提示（显示修改理由） */}
-        <span
-          className="absolute left-0 top-full mt-2 p-2 bg-yellow-100 dark:bg-yellow-900 text-yellow-900 dark:text-yellow-100 text-sm rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 whitespace-normal max-w-xs"
-        >
-          <span className="font-medium">{suggestion.type}：</span>
-          {suggestion.reason}
+          <div className="font-medium mb-1">{suggestion.type}</div>
+          <div className="text-gray-700 dark:text-gray-300">{suggestion.reason}</div>
+          {suggestion.suggestedText && (
+            <div className="mt-1 text-green-600 dark:text-green-400">
+              建议：{suggestion.suggestedText}
+            </div>
+          )}
         </span>
       </span>
     );
 
-    elements.push(suggestionGroup);
     lastIndex = suggestion.end;
   });
 

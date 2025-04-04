@@ -41,27 +41,45 @@ function segmentText(text: string): string[] {
 
 // 模拟评估过程
 async function simulateEvaluation(originalSegments: string[], translatedSegments: string[]) {
-    // 在实际应用中，这里应该调用真实的评估服务
+    // 分析每个段落的问题
+    const segmentFeedbacks = generateSegmentFeedbacks(originalSegments, translatedSegments);
+    
+    // 根据问题数量和严重程度计算评分
+    const segmentScores = originalSegments.map((originalSegment, index) => {
+        const feedback = segmentFeedbacks.find(f => f.segmentIndex === index);
+        if (!feedback) return 85; // 没有明显问题，给予较高基础分
+        
+        // 根据问题严重程度扣分
+        let score = 85;
+        feedback.issues.forEach(issue => {
+            switch (issue.type) {
+                case "术语不准确":
+                    score -= 10;
+                    break;
+                case "重复内容":
+                    score -= 8;
+                    break;
+                case "省略重要信息":
+                    score -= 15;
+                    break;
+                case "过度直译":
+                    score -= 5;
+                    break;
+                default:
+                    score -= 3;
+            }
+        });
+        
+        return Math.max(60, score); // 确保分数不会低于60分
+    });
 
-    // 为了演示，我们生成随机评分
-    const segmentScores = Array(Math.max(originalSegments.length, translatedSegments.length))
-        .fill(0)
-        .map(() => Math.floor(Math.random() * 40) + 60); // 60-100分
-
+    // 计算总体评分
     const overallScore = Math.round(
         segmentScores.reduce((sum, score) => sum + score, 0) / segmentScores.length
     );
 
-    // 生成具体的段落评论和建议
-    const segmentFeedbacks = generateSegmentFeedbacks(originalSegments, translatedSegments);
-
     // 生成整体评论
-    const comments = [
-        "整体翻译质量良好，但部分专业术语翻译不够准确。",
-        "语法结构基本正确，但有些句子过于直译，不够流畅。",
-        "部分长句翻译时结构被简化，导致信息损失。",
-        "建议改进专业术语的一致性，特别是在技术描述部分。"
-    ];
+    const comments = generateOverallComments(segmentFeedbacks, overallScore);
 
     // 模拟API延迟
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -76,7 +94,240 @@ async function simulateEvaluation(originalSegments: string[], translatedSegments
     };
 }
 
-// 生成段落具体评论和建议
+// 生成整体评论
+function generateOverallComments(segmentFeedbacks: any[], score: number): string[] {
+    const comments: string[] = [];
+    
+    // 统计问题类型
+    const issueTypes = new Map<string, number>();
+    segmentFeedbacks.forEach(feedback => {
+        feedback.issues.forEach((issue: any) => {
+            issueTypes.set(issue.type, (issueTypes.get(issue.type) || 0) + 1);
+        });
+    });
+
+    // 根据分数和问题类型生成评论
+    if (score < 70) {
+        comments.push("翻译质量需要显著改进，存在多处需要修正的问题。");
+    } else if (score < 80) {
+        comments.push("翻译基本可用，但有一些需要改进的地方。");
+    } else if (score < 90) {
+        comments.push("翻译质量良好，有少量可以优化的地方。");
+    } else {
+        comments.push("翻译质量优秀，基本达到专业水准。");
+    }
+
+    // 添加具体问题的评论
+    if (issueTypes.get("术语不准确")) {
+        comments.push("专业术语的翻译需要进一步规范，建议参考行业标准术语表。");
+    }
+    if (issueTypes.get("省略重要信息")) {
+        comments.push("存在信息缺失的情况，请确保译文完整传达原文的所有重要信息。");
+    }
+    if (issueTypes.get("过度直译")) {
+        comments.push("部分译文过于直译，建议适当调整以符合中文表达习惯。");
+    }
+    if (issueTypes.get("重复内容")) {
+        comments.push("注意避免不必要的重复内容。");
+    }
+
+    // 如果评分低但没有具体问题，添加默认评论
+    if (score < 80 && comments.length < 2) {
+        comments.push("建议仔细检查译文的准确性和流畅度。");
+        comments.push("可以考虑调整某些表达方式，使其更符合目标读者的阅读习惯。");
+    }
+
+    return comments;
+}
+
+// 计算最小编辑距离并返回编辑操作
+function calculateMinimumEditOperations(source: string, target: string): {
+    operations: Array<{
+        type: 'keep' | 'delete' | 'insert' | 'replace';
+        sourceStart: number;
+        sourceEnd: number;
+        targetStart: number;
+        targetEnd: number;
+        content?: string;
+    }>;
+} {
+    const m = source.length;
+    const n = target.length;
+    
+    // 创建DP表
+    const dp: number[][] = Array(m + 1).fill(0).map(() => Array(n + 1).fill(0));
+    const operations: Array<{
+        type: 'keep' | 'delete' | 'insert' | 'replace';
+        sourceStart: number;
+        sourceEnd: number;
+        targetStart: number;
+        targetEnd: number;
+        content?: string;
+    }> = [];
+
+    // 初始化DP表
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+    // 填充DP表
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            if (source[i - 1] === target[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1];
+            } else {
+                dp[i][j] = Math.min(
+                    dp[i - 1][j] + 1,  // 删除
+                    dp[i][j - 1] + 1,  // 插入
+                    dp[i - 1][j - 1] + 1  // 替换
+                );
+            }
+        }
+    }
+
+    // 回溯找出编辑操作
+    let i = m, j = n;
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && source[i - 1] === target[j - 1]) {
+            operations.unshift({
+                type: 'keep',
+                sourceStart: i - 1,
+                sourceEnd: i,
+                targetStart: j - 1,
+                targetEnd: j
+            });
+            i--; j--;
+        } else if (i > 0 && j > 0 && dp[i][j] === dp[i - 1][j - 1] + 1) {
+            operations.unshift({
+                type: 'replace',
+                sourceStart: i - 1,
+                sourceEnd: i,
+                targetStart: j - 1,
+                targetEnd: j,
+                content: target[j - 1]
+            });
+            i--; j--;
+        } else if (i > 0 && dp[i][j] === dp[i - 1][j] + 1) {
+            operations.unshift({
+                type: 'delete',
+                sourceStart: i - 1,
+                sourceEnd: i,
+                targetStart: j,
+                targetEnd: j
+            });
+            i--;
+        } else {
+            operations.unshift({
+                type: 'insert',
+                sourceStart: i,
+                sourceEnd: i,
+                targetStart: j - 1,
+                targetEnd: j,
+                content: target[j - 1]
+            });
+            j--;
+        }
+    }
+
+    return { operations };
+}
+
+// 改进的术语检查函数
+function analyzeTermIssues(originalContent: string, translatedContent: string): {
+    type: string;
+    description: string;
+    originalText: string;
+    translatedText: string;
+    suggestion: string;
+    reason: string;
+    operations?: Array<{
+        type: 'keep' | 'delete' | 'insert' | 'replace';
+        sourceStart: number;
+        sourceEnd: number;
+        targetStart: number;
+        targetEnd: number;
+        content?: string;
+    }>;
+}[] {
+    const issues: {
+        type: string;
+        description: string;
+        originalText: string;
+        translatedText: string;
+        suggestion: string;
+        reason: string;
+        operations?: Array<any>;
+    }[] = [];
+
+    // 扩展术语列表
+    const terms = [
+        {
+            en: "quality checks",
+            zh: "质量检查",
+            suggestion: "质量检查",
+            reason: "这是质量管理领域的标准术语。"
+        },
+        {
+            en: "quality assurance",
+            zh: "质量保证",
+            suggestion: "质量保证",
+            reason: "这是质量管理体系中的标准术语。"
+        },
+        {
+            en: "internal standards",
+            zh: "内部标准",
+            suggestion: "内部标准",
+            reason: "这是组织管理中的标准用语。"
+        },
+        {
+            en: "comprehensiveness",
+            zh: "完整性",
+            suggestion: "完整性",
+            reason: "这是评估标准中的关键术语。"
+        },
+        {
+            en: "accuracy",
+            zh: "准确性",
+            suggestion: "准确性",
+            reason: "这是质量评估中的基本术语。"
+        },
+        {
+            en: "strategic alignment",
+            zh: "战略一致性",
+            suggestion: "战略一致性",
+            reason: "这是战略管理中的专业术语。"
+        }
+    ];
+
+    for (const term of terms) {
+        if (originalContent.includes(term.en)) {
+            // 使用正则表达式找出所有可能的翻译
+            const pattern = new RegExp(`[质量的]{0,4}[保证检查]{2,4}|[内部的]{0,4}[标准规范]{2,4}|[完整准确战略]{2,6}[性一致对齐]{1,4}`, 'g');
+            let match;
+            
+            while ((match = pattern.exec(translatedContent)) !== null) {
+                const actualTranslation = match[0];
+                if (actualTranslation !== term.zh) {
+                    // 计算实际翻译和建议翻译之间的字符级别差异
+                    const { operations } = calculateMinimumEditOperations(actualTranslation, term.zh);
+                    
+                    issues.push({
+                        type: "术语不准确",
+                        description: generateIssueDescription("术语不准确"),
+                        originalText: term.en,
+                        translatedText: actualTranslation,
+                        suggestion: term.zh,
+                        reason: term.reason,
+                        operations: operations
+                    });
+                }
+            }
+        }
+    }
+
+    return issues;
+}
+
+// 在生成段落反馈时包含编辑操作信息
 function generateSegmentFeedbacks(originalSegments: string[], translatedSegments: string[]) {
     const feedbacks: {
         segmentIndex: number;
@@ -89,6 +340,7 @@ function generateSegmentFeedbacks(originalSegments: string[], translatedSegments
             start: number;
             end: number;
             reason: string;
+            operations?: Array<any>;
         }[];
     }[] = [];
 
@@ -123,6 +375,21 @@ function generateSegmentFeedbacks(originalSegments: string[], translatedSegments
 
         // 分析段落中的问题
         const issues = analyzeSegmentIssues(originalContent, translatedContent, checkedRanges);
+
+        // 在添加术语问题时包含操作信息
+        const termIssues = analyzeTermIssues(originalContent, translatedContent);
+        for (const issue of termIssues) {
+            const start = translatedContent.indexOf(issue.translatedText);
+            if (start !== -1 && !isRangeOverlapping({ start, end: start + issue.translatedText.length }, checkedRanges)) {
+                issues.push({
+                    ...issue,
+                    start,
+                    end: start + issue.translatedText.length,
+                    operations: issue.operations
+                });
+                checkedRanges.push({ start, end: start + issue.translatedText.length });
+            }
+        }
 
         if (issues.length > 0) {
             feedbacks.push({
@@ -219,20 +486,6 @@ function analyzeSegmentIssues(
         position += segment.length;
     }
 
-    // 分析术语问题
-    const termIssues = analyzeTermIssues(originalContent, translatedContent);
-    for (const issue of termIssues) {
-        const start = translatedContent.indexOf(issue.translatedText);
-        if (start !== -1 && !isRangeOverlapping({ start, end: start + issue.translatedText.length }, checkedRanges)) {
-            issues.push({
-                ...issue,
-                start,
-                end: start + issue.translatedText.length
-            });
-            checkedRanges.push({ start, end: start + issue.translatedText.length });
-        }
-    }
-
     return issues;
 }
 
@@ -289,66 +542,6 @@ function checkDuplicateContent(segment: string, fullText: string, basePosition: 
     }
 
     return null;
-}
-
-// 分析术语问题
-function analyzeTermIssues(originalContent: string, translatedContent: string): {
-    type: string;
-    description: string;
-    originalText: string;
-    translatedText: string;
-    suggestion: string;
-    reason: string;
-}[] {
-    const issues: {
-        type: string;
-        description: string;
-        originalText: string;
-        translatedText: string;
-        suggestion: string;
-        reason: string;
-    }[] = [];
-
-    // 检查特定术语
-    const terms = [
-        {
-            en: "Amazon Bedrock",
-            zh: "Amazon Bedrock",
-            suggestion: "Amazon Bedrock",
-            reason: "专有名词应保持原样，不需要翻译。"
-        },
-        {
-            en: "data sources",
-            zh: "数据源",
-            suggestion: "数据源",
-            reason: "这是数据领域的标准术语。"
-        },
-        {
-            en: "draft content",
-            zh: "草稿内容",
-            suggestion: "草稿内容",
-            reason: "这是文档处理领域的标准术语。"
-        }
-        // 可以添加更多术语
-    ];
-
-    for (const term of terms) {
-        if (originalContent.includes(term.en)) {
-            const incorrectTranslations = translatedContent.match(new RegExp(`[^${term.zh}]${term.zh}|${term.zh}[^${term.zh}]`, 'g'));
-            if (incorrectTranslations) {
-                issues.push({
-                    type: "术语不准确",
-                    description: generateIssueDescription("术语不准确"),
-                    originalText: term.en,
-                    translatedText: incorrectTranslations[0],
-                    suggestion: term.suggestion,
-                    reason: term.reason
-                });
-            }
-        }
-    }
-
-    return issues;
 }
 
 // 检查特殊案例
