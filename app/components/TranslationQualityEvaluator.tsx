@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import React from "react";
+import { calculateTextDiff, findSuggestionPositions } from "../utils/textDiff";
 
 interface TranslationQualityEvaluatorProps {
   onBack: () => void;
@@ -11,6 +12,7 @@ interface Suggestion {
   start: number;
   end: number;
   originalText: string;
+  translatedText: string;
   suggestedText: string;
   type: string;
   description: string;
@@ -33,8 +35,13 @@ interface AnnotatedTranslationProps {
 function AnnotatedTranslation({ text, suggestions }: AnnotatedTranslationProps) {
   const [activeSuggestion, setActiveSuggestion] = useState<Suggestion | null>(null);
 
+  // 过滤掉 translatedText 和 suggestion 相同的建议
+  const filteredSuggestions = suggestions.filter(suggestion => 
+    suggestion.translatedText !== suggestion.suggestedText
+  );
+
   // 将建议按位置排序，并对重叠的建议进行合并
-  const sortedSuggestions = [...suggestions]
+  const sortedSuggestions = [...filteredSuggestions]
     .sort((a, b) => a.start - b.start)
     .reduce((acc, curr) => {
       // 检查是否有重叠的建议
@@ -76,6 +83,7 @@ function AnnotatedTranslation({ text, suggestions }: AnnotatedTranslationProps) 
 
     // 显示修改建议
     const originalText = text.substring(suggestion.start, suggestion.end);
+    const diffText = calculateTextDiff(originalText, suggestion.suggestedText);
 
     // 始终显示原始文本（带删除线）和修改后的文本（绿色）
     elements.push(
@@ -86,7 +94,7 @@ function AnnotatedTranslation({ text, suggestions }: AnnotatedTranslationProps) 
         onMouseLeave={() => setActiveSuggestion(null)}
       >
         <span className="text-red-500 dark:text-red-400 line-through">
-          {suggestion.originalText}
+          {originalText}
         </span>
         {suggestion.suggestedText && (
           <span className="text-green-600 dark:text-green-400 ml-1">
@@ -103,6 +111,9 @@ function AnnotatedTranslation({ text, suggestions }: AnnotatedTranslationProps) 
               {suggestion.type}
             </div>
             <div className="text-yellow-700 dark:text-yellow-300">
+              {diffText}
+            </div>
+            <div className="text-yellow-700 dark:text-yellow-300 mt-1">
               {suggestion.reason}
             </div>
           </div>
@@ -486,21 +497,12 @@ export default function TranslationQualityEvaluator({
                           <AnnotatedTranslation
                             text={extractSegmentContent(translatedSegment)}
                             suggestions={
-                              evaluationResults?.segmentFeedbacks
-                                ?.find((feedback) => feedback.segmentIndex === index)
-                                ?.issues.map((issue) => {
-                                  // 计算段落编号的长度
-                                  const prefixLength = translatedSegment.length - extractSegmentContent(translatedSegment).length;
-                                  return {
-                                    start: Math.max(0, issue.start - prefixLength),
-                                    end: Math.max(0, issue.end - prefixLength),
-                                    originalText: issue.translatedText,
-                                    suggestedText: issue.suggestion,
-                                    type: issue.type,
-                                    description: issue.description,
-                                    reason: issue.reason
-                                  };
-                                }) || []
+                              findSuggestionPositions(
+                                extractSegmentContent(translatedSegment),
+                                evaluationResults?.segmentFeedbacks
+                                  ?.find((feedback) => feedback.segmentIndex === index)
+                                  ?.issues || []
+                              )
                             }
                           />
                         </p>
