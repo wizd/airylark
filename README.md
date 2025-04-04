@@ -115,6 +115,49 @@ npm start
 
 ### 方法二：使用 Docker 部署
 
+#### 快速部署（使用公共Docker镜像）
+
+我们已经在Docker Hub上提供了预构建的镜像，您可以直接使用它进行快速部署：
+
+1. 拉取最新的镜像：
+
+```bash
+docker pull docker.io/wizdy/airylark:latest
+```
+
+> **镜像标签说明**：
+> - `latest`: 最新稳定版
+> - `dev`: 开发版本，包含最新功能但可能不稳定
+> - `v1.x.x`: 特定版本号，如需使用固定版本可指定，例如 `docker.io/wizdy/airylark:v1.0.0`
+
+2. 创建环境变量文件（如`.env`）：
+
+```
+TRANSLATION_API_KEY=your_api_key
+TRANSLATION_MODEL=your_model
+TRANSLATION_BASE_URL=your_base_url
+```
+
+3. 运行容器：
+
+```bash
+docker run -p 3000:3000 --env-file .env -d docker.io/wizdy/airylark:latest
+```
+
+4. 访问应用：
+
+在浏览器中打开 http://localhost:3000 即可使用AiryLark。
+
+一键启动（适用于测试，无需配置环境变量文件）：
+
+```bash
+docker run -p 3000:3000 -e TRANSLATION_API_KEY=your_api_key -e TRANSLATION_MODEL=your_model -e TRANSLATION_BASE_URL=your_base_url -d docker.io/wizdy/airylark:latest
+```
+
+常见问题：
+- 如果遇到权限问题，请尝试使用`sudo`运行Docker命令
+- 端口冲突时，可以修改映射端口，例如：`-p 8080:3000`会将应用映射到8080端口
+
 #### 单独使用 Dockerfile
 
 1. 构建 Docker 镜像：
@@ -139,13 +182,27 @@ TRANSLATION_MODEL=your_model
 TRANSLATION_BASE_URL=your_base_url
 ```
 
-2. 启动服务：
+2. 创建 `docker-compose.yml` 文件：
+
+```yaml
+version: '3'
+services:
+  airylark:
+    image: docker.io/wizdy/airylark:latest
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    restart: unless-stopped
+```
+
+3. 启动服务：
 
 ```bash
 docker-compose up -d
 ```
 
-3. 停止服务：
+4. 停止服务：
 
 ```bash
 docker-compose down
