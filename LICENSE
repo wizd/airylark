@@ -1,7 +1,17 @@
+# AiryLark License
 # AiryLark许可证
 
+## Core License (Apache License 2.0)
 ## 核心许可证 (Apache License 2.0)
-Copyright 2024 VCorp.ai 开发团队.
+
+Copyright 2025 VCorp AI, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License.
+You may obtain a copy of the License at: http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and limitations under the License.
 
 依照Apache许可证2.0版本("许可证")授权；除非遵守许可证，否则不得使用此文件。
 您可以在以下网址获取许可证副本：http://www.apache.org/licenses/LICENSE-2.0
@@ -9,7 +19,17 @@ Copyright 2024 VCorp.ai 开发团队.
 根据适用法律或书面协议，本软件按"原样"分发，不附带任何明示或暗示的担保或条件。
 有关许可证下特定语言的权限和限制，请参阅许可证。
 
+## Additional Terms for Specific Features
 ## 特定功能的附加条款
+
+The following additional terms apply to AiryLark's advanced translation features, batch processing, API integration, and enterprise-level functionalities. In the event of a conflict, these terms shall take precedence over the Apache License:
+
+1. **Free for Self-Hosted Versions**: All features of AiryLark, including advanced translation features, batch processing, API integration, and enterprise-level functionalities, are always free to use in self-hosted versions.
+
+2. **Resale Restrictions**: No third party may sell or offer as a service the advanced translation features, batch processing, API integration, and enterprise-level functionalities without prior written consent from the copyright holder.
+
+3. **Distribution of Modifications**: Any modifications to advanced translation features, batch processing, API integration, and enterprise-level functionalities must be freely distributed and may not be sold or offered as a service.
+
 以下附加条款适用于AiryLark的高级翻译功能、批量处理、API集成和企业级功能。如有冲突，这些条款优先于Apache许可证：
 
 1. **自托管版本免费**：AiryLark的所有功能，包括高级翻译功能、批量处理、API集成和企业级功能，在自托管版本中始终免费使用。
@@ -18,4 +38,5 @@ Copyright 2024 VCorp.ai 开发团队.
 
 3. **修改分发**：对高级翻译功能、批量处理、API集成和企业级功能的任何修改必须自由分发，不得销售或作为服务提供。
 
+For further inquiries or commercial licensing, please contact: [info@vcorp.ai]
 如需进一步咨询或获取商业许可，请联系：[info@vcorp.ai] 
