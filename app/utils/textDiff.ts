@@ -257,10 +257,7 @@ export function findSuggestionPositions(text: string, suggestions: Array<{
     description: string;
     reason: string;
 }> {
-    // 过滤掉完全相同的建议
-    const validSuggestions = suggestions.filter(s => s.translatedText !== s.suggestion);
-    
-    return validSuggestions.map(suggestion => {
+    return suggestions.map(suggestion => {
         const diff = findDifferences(suggestion.translatedText, suggestion.suggestion);
         if (!diff) {
             return null;
