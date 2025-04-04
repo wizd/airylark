@@ -31,6 +31,8 @@ interface AnnotatedTranslationProps {
 }
 
 function AnnotatedTranslation({ text, suggestions }: AnnotatedTranslationProps) {
+  const [activeSuggestion, setActiveSuggestion] = useState<Suggestion | null>(null);
+
   // 将建议按位置排序，并对重叠的建议进行合并
   const sortedSuggestions = [...suggestions]
     .sort((a, b) => a.start - b.start)
@@ -72,40 +74,39 @@ function AnnotatedTranslation({ text, suggestions }: AnnotatedTranslationProps) 
       );
     }
 
-    // 根据建议类型使用不同的样式
-    const getStyleForType = (type: string) => {
-      switch (type.toLowerCase()) {
-        case '术语不准确':
-          return 'bg-yellow-200 dark:bg-yellow-900 text-yellow-900 dark:text-yellow-100';
-        case '语法错误':
-          return 'bg-red-200 dark:bg-red-900 text-red-900 dark:text-red-100';
-        case '表达不准确':
-          return 'bg-orange-200 dark:bg-orange-900 text-orange-900 dark:text-orange-100';
-        default:
-          return 'bg-blue-200 dark:bg-blue-900 text-blue-900 dark:text-blue-100';
-      }
-    };
+    // 显示修改建议
+    const originalText = text.substring(suggestion.start, suggestion.end);
 
+    // 始终显示原始文本（带删除线）和修改后的文本（绿色）
     elements.push(
       <span
         key={`suggestion-${index}`}
-        className={`group relative inline-block px-1 rounded mx-0.5 cursor-help ${getStyleForType(suggestion.type)}`}
+        className="group relative inline-block"
+        onMouseEnter={() => setActiveSuggestion(suggestion)}
+        onMouseLeave={() => setActiveSuggestion(null)}
       >
-        {text.substring(suggestion.start, suggestion.end)}
-        {/* 悬浮提示 */}
-        <span
-          className="absolute left-0 top-full mt-2 p-2 bg-white dark:bg-gray-800 text-sm rounded shadow-lg 
-                     opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 whitespace-normal 
-                     max-w-xs border border-gray-200 dark:border-gray-700"
-        >
-          <span className="font-medium mb-1">{suggestion.type}</span>
-          <span className="text-gray-700 dark:text-gray-300">{suggestion.reason}</span>
-          {suggestion.suggestedText && (
-            <span className="mt-1 text-green-600 dark:text-green-400">
-              建议：{suggestion.suggestedText}
-            </span>
-          )}
+        <span className="text-red-500 dark:text-red-400 line-through">
+          {suggestion.originalText}
         </span>
+        {suggestion.suggestedText && (
+          <span className="text-green-600 dark:text-green-400 ml-1">
+            {suggestion.suggestedText}
+          </span>
+        )}
+        {/* 悬浮提示 */}
+        {activeSuggestion === suggestion && (
+          <div
+            className="absolute left-0 top-full mt-2 p-2 bg-yellow-100 dark:bg-yellow-900 text-sm rounded shadow-lg 
+                      z-10 whitespace-normal max-w-xs border border-yellow-200 dark:border-yellow-800"
+          >
+            <div className="font-medium mb-1 text-yellow-800 dark:text-yellow-200">
+              {suggestion.type}
+            </div>
+            <div className="text-yellow-700 dark:text-yellow-300">
+              {suggestion.reason}
+            </div>
+          </div>
+        )}
       </span>
     );
 
@@ -487,15 +488,19 @@ export default function TranslationQualityEvaluator({
                             suggestions={
                               evaluationResults?.segmentFeedbacks
                                 ?.find((feedback) => feedback.segmentIndex === index)
-                                ?.issues.map((issue) => ({
-                                  start: issue.start,
-                                  end: issue.end,
-                                  originalText: issue.translatedText,
-                                  suggestedText: issue.suggestion,
-                                  type: issue.type,
-                                  description: issue.description,
-                                  reason: issue.reason
-                                })) || []
+                                ?.issues.map((issue) => {
+                                  // 计算段落编号的长度
+                                  const prefixLength = translatedSegment.length - extractSegmentContent(translatedSegment).length;
+                                  return {
+                                    start: Math.max(0, issue.start - prefixLength),
+                                    end: Math.max(0, issue.end - prefixLength),
+                                    originalText: issue.translatedText,
+                                    suggestedText: issue.suggestion,
+                                    type: issue.type,
+                                    description: issue.description,
+                                    reason: issue.reason
+                                  };
+                                }) || []
                             }
                           />
                         </p>

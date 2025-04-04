@@ -382,7 +382,14 @@ function analyzeTermIssues(originalContent: string, translatedContent: string): 
         translatedText: string;
         suggestion: string;
         reason: string;
-        operations?: Array<any>;
+        operations?: Array<{
+            type: 'keep' | 'delete' | 'insert' | 'replace';
+            sourceStart: number;
+            sourceEnd: number;
+            targetStart: number;
+            targetEnd: number;
+            content?: string;
+        }>;
     }[] = [];
 
     // 扩展术语列表
@@ -703,6 +710,19 @@ function checkDuplicateContent(segment: string, fullText: string, basePosition: 
 
 // 检查特殊案例
 function checkSpecialCases(originalText: string, translatedText: string) {
+    // 检查 previous APs 的翻译
+    if (originalText.includes("previous APs") &&
+        translatedText.includes("之前的AP")) {
+        return {
+            type: "流畅性",
+            description: "译文中的表达不够自然",
+            originalText: "之前的AP",
+            translatedText: "之前的AP",
+            suggestion: "之前的行动计划",
+            reason: "AP 应该翻译为'行动计划'，这样更容易理解。"
+        };
+    }
+
     // 特殊案例1: EU Strategy for Cooperation in the Indo-Pacific
     if (originalText.includes("EU Strategy for Cooperation in the Indo-Pacific") &&
         translatedText.includes("欧盟印太合作战略")) {
