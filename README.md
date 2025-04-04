@@ -8,6 +8,10 @@
 
 AiryLark是一个开源的文档处理工具，支持多种文件格式的输入和处理。无论是PDF文档、Word文件还是纯文本，AiryLark都能高效处理。
 
+## 在线试用
+
+您可以通过访问 [https://airylark.vcorp.ai/](https://airylark.vcorp.ai/) 来试用AiryLark的在线版本，体验多语言翻译服务的高精度和高效率。
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## 支持的输入类型
