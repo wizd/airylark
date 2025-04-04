@@ -1,5 +1,13 @@
 # AiryLark
 
+[![License: Custom](https://img.shields.io/badge/License-Custom%20(Apache%202.0%20with%20restrictions)-blue.svg)](./LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
+[![GitHub issues](https://img.shields.io/github/issues/yourusername/airylark)](https://github.com/yourusername/airylark/issues)
+
+> 一个多功能文档处理与翻译工具，基于Next.js构建
+
+AiryLark是一个开源的文档处理工具，支持多种文件格式的输入和处理。无论是PDF文档、Word文件还是纯文本，AiryLark都能高效处理。
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## 支持的输入类型
@@ -122,6 +130,11 @@ docker-compose down
 
 ## 许可证
 
-本项目使用 [Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)](LICENSE) 进行许可。
+本项目使用定制的AiryLark许可证，基于Apache 2.0开源许可证，并附加特定功能的商业保护条款：
 
-该许可证允许他人自由地分享和改编本项目，但必须保留原作者署名，且不得用于商业目的。详细条款请参阅[LICENSE](LICENSE)文件。
+- **核心代码**：采用Apache 2.0许可证开源
+- **高级功能**：包括高级翻译功能、批量处理、API集成和企业级功能，具有附加使用条款
+- **自托管免费**：所有功能在自托管版本中永久免费使用
+- **商业保护**：第三方不得未经许可将特定功能作为服务销售
+
+详细条款请参阅[LICENSE](LICENSE)文件。

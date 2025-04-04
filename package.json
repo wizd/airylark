@@ -1,7 +1,21 @@
 {
   "name": "airylark",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
+  "description": "一个支持多种文档格式处理的Next.js应用",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "AiryLark Team",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/airylark.git"
+  },
+  "keywords": [
+    "next.js",
+    "react",
+    "document",
+    "translation",
+    "pdf"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
