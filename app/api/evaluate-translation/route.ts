@@ -72,7 +72,7 @@ ${translatedText}
                     "description": "问题描述",
                     "originalText": "原文片段",
                     "translatedText": "译文片段",
-                    "suggestion": "建议修改",
+                    "suggestion": "建议的翻译结果（直接输出修改后的文本，不要包含'改为'等指示词）",
                     "start": 起始位置,
                     "end": 结束位置,
                     "reason": "修改理由"
