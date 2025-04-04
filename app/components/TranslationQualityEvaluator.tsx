@@ -550,7 +550,7 @@ export default function TranslationQualityEvaluator({
                         </div>
                       </div>
                       <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-300 dark:border-gray-600 min-h-[100px]">
-                        <p className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                        <div className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
                           <AnnotatedTranslation
                             text={extractSegmentContent(translatedSegment)}
                             suggestions={
@@ -562,7 +562,7 @@ export default function TranslationQualityEvaluator({
                               )
                             }
                           />
-                        </p>
+                        </div>
                       </div>
 
                       {/* 评论显示 */}
