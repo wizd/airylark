@@ -170,75 +170,125 @@ function analyzeSegmentIssues(
         reason: string;
     }[] = [];
 
-    // 分析重复的译文
-    const duplicateMatches = translatedContent.match(/(.{10,}?)(?=.*?\1)/g);
-    if (duplicateMatches) {
-        for (const match of duplicateMatches) {
-            const start = translatedContent.indexOf(match);
-            const end = start + match.length;
-            
-            // 检查是否与已检测的范围重叠
+    // 使用更智能的分词方式
+    const segments = translatedContent.split(/([。！？，；：\s])/);
+    let position = 0;
+
+    for (let i = 0; i < segments.length; i++) {
+        const segment = segments[i];
+        if (!segment.trim()) {
+            position += segment.length;
+            continue;
+        }
+
+        // 检查数字格式问题
+        const numberIssues = checkNumberFormat(segment, position);
+        if (numberIssues) {
+            const { start, end, suggestion } = numberIssues;
             if (!isRangeOverlapping({ start, end }, checkedRanges)) {
                 issues.push({
-                    type: "重复内容",
-                    description: "译文中存在重复的内容",
-                    originalText: match,
-                    translatedText: match,
-                    suggestion: "删除重复的内容",
+                    type: "数字格式",
+                    description: "数字格式需要规范化",
+                    originalText: translatedContent.substring(start, end),
+                    translatedText: translatedContent.substring(start, end),
+                    suggestion,
                     start,
                     end,
-                    reason: "译文中出现了重复的内容，这可能是由于复制粘贴导致的错误。"
+                    reason: "数字的表达方式需要符合中文写作规范"
                 });
                 checkedRanges.push({ start, end });
             }
         }
+
+        // 检查重复内容（改进版）
+        const duplicateIssue = checkDuplicateContent(segment, translatedContent, position);
+        if (duplicateIssue && !isRangeOverlapping(duplicateIssue, checkedRanges)) {
+            issues.push({
+                type: "重复内容",
+                description: "译文中存在不必要的重复",
+                originalText: translatedContent.substring(duplicateIssue.start, duplicateIssue.end),
+                translatedText: translatedContent.substring(duplicateIssue.start, duplicateIssue.end),
+                suggestion: "删除重复内容",
+                start: duplicateIssue.start,
+                end: duplicateIssue.end,
+                reason: "文本中出现了不必要的重复内容，影响阅读流畅度"
+            });
+            checkedRanges.push(duplicateIssue);
+        }
+
+        position += segment.length;
     }
 
     // 分析术语问题
     const termIssues = analyzeTermIssues(originalContent, translatedContent);
     for (const issue of termIssues) {
         const start = translatedContent.indexOf(issue.translatedText);
-        const end = start + issue.translatedText.length;
-        
-        // 检查是否与已检测的范围重叠
-        if (!isRangeOverlapping({ start, end }, checkedRanges)) {
+        if (start !== -1 && !isRangeOverlapping({ start, end: start + issue.translatedText.length }, checkedRanges)) {
             issues.push({
                 ...issue,
                 start,
-                end
+                end: start + issue.translatedText.length
             });
-            checkedRanges.push({ start, end });
-        }
-    }
-
-    // 分析语法和流畅性问题
-    const sentences = translatedContent.split(/[。！？]/);
-    for (const sentence of sentences) {
-        if (!sentence.trim()) continue;
-
-        const start = translatedContent.indexOf(sentence);
-        const end = start + sentence.length;
-
-        // 检查是否与已检测的范围重叠
-        if (!isRangeOverlapping({ start, end }, checkedRanges)) {
-            const grammarResult = generateGrammarSuggestion(sentence);
-            if (grammarResult.suggestion !== sentence) {
-                issues.push({
-                    type: "语法错误",
-                    description: generateIssueDescription("语法错误"),
-                    originalText: sentence,
-                    translatedText: sentence,
-                    suggestion: grammarResult.suggestion,
-                    start,
-                    end,
-                    reason: grammarResult.reason
-                });
-                checkedRanges.push({ start, end });
-            }
+            checkedRanges.push({ start, end: start + issue.translatedText.length });
         }
     }
 
     return issues;
+}
+
+// 检查数字格式
+function checkNumberFormat(text: string, basePosition: number): { start: number; end: number; suggestion: string } | null {
+    const numberPattern = /\d+\s+\d+(?:年|月|日)?/g;
+    let match;
+
+    while ((match = numberPattern.exec(text)) !== null) {
+        const matchedText = match[0];
+        const start = basePosition + match.index;
+        const end = start + matchedText.length;
+
+        // 处理年份等特殊情况
+        if (matchedText.includes('年') || matchedText.includes('月') || matchedText.includes('日')) {
+            const parts = matchedText.split(/\s+/);
+            if (parts.length === 2) {
+                const suggestion = parts.join('');
+                return { start, end, suggestion };
+            }
+        }
+
+        // 处理普通数字
+        const suggestion = matchedText.replace(/\s+/g, '');
+        return { start, end, suggestion };
+    }
+
+    return null;
+}
+
+// 改进的重复内容检查
+function checkDuplicateContent(segment: string, fullText: string, basePosition: number): { start: number; end: number } | null {
+    if (segment.length < 5) return null;  // 忽略过短的片段
+
+    const segmentStart = basePosition;
+    const segmentEnd = basePosition + segment.length;
+
+    // 在当前位置之后查找重复
+    const restText = fullText.substring(segmentEnd);
+    const escapedSegment = segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const duplicateMatch = restText.match(new RegExp(escapedSegment));
+
+    if (duplicateMatch && typeof duplicateMatch.index === 'number') {
+        const duplicateStart = segmentEnd + duplicateMatch.index;
+        const duplicateEnd = duplicateStart + segment.length;
+
+        // 检查重复是否有意义（避免误判正常的重复，如标点符号）
+        if (segment.length > 10 || /[\u4e00-\u9fa5]/.test(segment)) {
+            return {
+                start: duplicateStart,
+                end: duplicateEnd
+            };
+        }
+    }
+
+    return null;
 }
 
 // 分析术语问题

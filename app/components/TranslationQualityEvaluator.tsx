@@ -49,7 +49,7 @@ function AnnotatedTranslation({ text, suggestions }: AnnotatedTranslationProps) 
     const suggestionGroup = (
       <span
         key={`suggestion-group-${index}`}
-        className="group relative inline-block"
+        className="group relative inline-block bg-yellow-50 dark:bg-yellow-900/30 px-1 rounded mx-0.5"
       >
         {/* 需要修改的文本（红色删除线） */}
         <span
@@ -58,11 +58,13 @@ function AnnotatedTranslation({ text, suggestions }: AnnotatedTranslationProps) 
           {text.substring(suggestion.start, suggestion.end)}
         </span>
         {/* 建议的文本（绿色） */}
-        <span
-          className="text-green-600 dark:text-green-400 ml-1 cursor-pointer"
-        >
-          {suggestion.suggestedText}
-        </span>
+        {suggestion.suggestedText && (
+          <span
+            className="text-green-600 dark:text-green-400 ml-1 cursor-pointer"
+          >
+            {'→ '}{suggestion.suggestedText}
+          </span>
+        )}
         {/* 悬浮提示（显示修改理由） */}
         <span
           className="absolute left-0 top-full mt-2 p-2 bg-yellow-100 dark:bg-yellow-900 text-yellow-900 dark:text-yellow-100 text-sm rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 whitespace-normal max-w-xs"
