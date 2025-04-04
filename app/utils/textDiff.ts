@@ -164,62 +164,110 @@ function findDifferences(text1: string, text2: string): {
     end: number;
     text: string;
 } | null {
+    console.log('findDifferences 输入:');
+    console.log('text1:', text1);
+    console.log('text2:', text2);
+
     // 如果两段文本完全相同，返回null
     if (text1 === text2) {
+        console.log('文本完全相同，返回null');
         return null;
     }
 
-    // 如果text2完全包含在text1中，说明只是删除了一部分
-    const index1 = text1.indexOf(text2);
-    if (index1 !== -1) {
-        // 找出被删除的部分
-        const beforeText = text1.substring(0, index1);
-        const afterText = text1.substring(index1 + text2.length);
-        const deletedText = beforeText || afterText;
-        const start = beforeText ? 0 : index1 + text2.length;
+    // 使用findMinimalDifferences找出所有差异
+    const minimalDiffs = findMinimalDifferences(text1, text2);
+    console.log('找到的所有差异:', minimalDiffs);
+
+    // 合并连续的差异
+    const mergedDiffs = mergeDifferences(minimalDiffs);
+    console.log('合并后的差异:', mergedDiffs);
+
+    // 找出最大的差异块
+    let maxDiffLength = 0;
+    let maxDiff = null;
+    let currentDiff = {
+        type: 'keep' as const,
+        start: 0,
+        end: 0,
+        deleteText: '',
+        insertText: ''
+    };
+
+    for (const diff of mergedDiffs) {
+        if (diff.type === 'keep') {
+            // 如果当前差异块比之前找到的更大，保存它
+            if (currentDiff.deleteText || currentDiff.insertText) {
+                const diffLength = Math.max(
+                    currentDiff.deleteText.length,
+                    currentDiff.insertText.length
+                );
+                if (diffLength > maxDiffLength) {
+                    maxDiffLength = diffLength;
+                    maxDiff = { ...currentDiff };
+                }
+            }
+            // 重置当前差异块
+            currentDiff = {
+                type: 'keep',
+                start: diff.position + diff.text.length,
+                end: diff.position + diff.text.length,
+                deleteText: '',
+                insertText: ''
+            };
+        } else {
+            if (diff.type === 'delete') {
+                currentDiff.deleteText += diff.text;
+                currentDiff.end = diff.position + diff.text.length;
+            } else if (diff.type === 'insert') {
+                currentDiff.insertText += diff.text;
+                currentDiff.end = diff.position + diff.text.length;
+            }
+        }
+    }
+
+    // 检查最后一个差异块
+    if (currentDiff.deleteText || currentDiff.insertText) {
+        const diffLength = Math.max(
+            currentDiff.deleteText.length,
+            currentDiff.insertText.length
+        );
+        if (diffLength > maxDiffLength) {
+            maxDiff = currentDiff;
+        }
+    }
+
+    // 如果没有找到差异，返回null
+    if (!maxDiff || (!maxDiff.deleteText && !maxDiff.insertText)) {
+        console.log('未找到有效差异');
+        return null;
+    }
+
+    // 根据差异类型返回结果
+    if (maxDiff.deleteText && !maxDiff.insertText) {
+        console.log('处理删除操作');
         return {
             type: 'delete',
-            start,
-            end: start + deletedText.length,
-            text: deletedText
+            start: maxDiff.start,
+            end: maxDiff.end,
+            text: maxDiff.deleteText
         };
-    }
-
-    // 如果text1完全包含在text2中，说明只是添加了一部分
-    const index2 = text2.indexOf(text1);
-    if (index2 !== -1) {
-        // 找出新增的部分
-        const beforeText = text2.substring(0, index2);
-        const afterText = text2.substring(index2 + text1.length);
-        const addedText = beforeText || afterText;
-        const start = beforeText ? 0 : index2 + text1.length;
+    } else if (!maxDiff.deleteText && maxDiff.insertText) {
+        console.log('处理插入操作');
         return {
             type: 'insert',
-            start,
-            end: start + addedText.length,
-            text: addedText
+            start: maxDiff.start,
+            end: maxDiff.start,
+            text: maxDiff.insertText
+        };
+    } else {
+        console.log('处理替换操作');
+        return {
+            type: 'replace',
+            start: maxDiff.start,
+            end: maxDiff.end,
+            text: maxDiff.insertText
         };
     }
-
-    // 其他情况，从左到右找出不同部分
-    let start = 0;
-    while (start < text1.length && start < text2.length && text1[start] === text2[start]) {
-        start++;
-    }
-
-    let end1 = text1.length - 1;
-    let end2 = text2.length - 1;
-    while (end1 >= start && end2 >= start && text1[end1] === text2[end2]) {
-        end1--;
-        end2--;
-    }
-
-    return {
-        type: 'replace',
-        start,
-        end: end1 + 1,
-        text: text2.substring(start, end2 + 1)
-    };
 }
 
 // 计算文本差异并返回差异部分
@@ -257,56 +305,94 @@ export function findSuggestionPositions(text: string, suggestions: Array<{
     description: string;
     reason: string;
 }> {
-    return suggestions.map(suggestion => {
-        const diff = findDifferences(suggestion.translatedText, suggestion.suggestion);
-        if (!diff) {
-            return null;
-        }
+    console.log('开始处理建议，共有建议数量:', suggestions.length);
+    
+    return suggestions.map((suggestion, index) => {
+        console.log(`\n处理第 ${index + 1} 个建议:`);
+        console.log('建议类型:', suggestion.type);
+        console.log('原译文:', suggestion.translatedText);
+        console.log('建议译文:', suggestion.suggestion);
 
         // 在原文中查找位置
         const position = text.indexOf(suggestion.translatedText);
         if (position === -1) {
+            console.log('❌ 建议被忽略: 在原文中未找到匹配位置');
             return null;
         }
 
-        // 如果是删除操作，只标记要删除的部分
-        if (diff.type === 'delete') {
-            return {
-                start: position + diff.start,
-                end: position + diff.start + diff.text.length,
-                originalText: diff.text,
-                translatedText: suggestion.translatedText,
-                suggestedText: '',  // 删除操作不需要建议文本
-                type: suggestion.type,
-                description: suggestion.description,
-                reason: suggestion.reason
-            };
+        // 使用findMinimalDifferences找出所有差异
+        const diffs = findMinimalDifferences(suggestion.translatedText, suggestion.suggestion);
+        console.log('找到的所有差异:', diffs);
+
+        // 过滤掉 keep 类型的差异
+        const changes = diffs.filter(d => d.type !== 'keep');
+        console.log('过滤后的实际变化:', changes);
+
+        if (changes.length === 0) {
+            console.log('❌ 建议被忽略: 没有实际的文本差异');
+            return null;
         }
 
-        // 如果是插入操作，只标记要插入的位置
-        if (diff.type === 'insert') {
-            return {
-                start: position + diff.start,
-                end: position + diff.start,
-                originalText: '',
-                translatedText: suggestion.translatedText,
-                suggestedText: diff.text,
-                type: suggestion.type,
-                description: suggestion.description,
-                reason: suggestion.reason
-            };
+        // 计算变化区域在 suggestion.translatedText 中的相对起止位置
+        const relativeStart = Math.min(...changes.map(c => c.position));
+        
+        // 计算相对结束位置：取所有 delete 操作的最大结束点
+        const deleteChanges = changes.filter(c => c.type === 'delete');
+        let relativeEnd = relativeStart; // 默认等于开始位置
+        if (deleteChanges.length > 0) {
+             relativeEnd = Math.max(...deleteChanges.map(c => c.position + c.text.length));
+        }
+        // 如果只有 insert 操作，结束位置等于开始位置
+        if (changes.every(c => c.type === 'insert')) {
+            relativeEnd = relativeStart;
+        } else {
+            // 如果有 delete，确保 end 不小于 start
+            relativeEnd = Math.max(relativeStart, relativeEnd);
+        }
+        
+        console.log('相对起始位置:', relativeStart);
+        console.log('相对结束位置:', relativeEnd);
+
+        // 计算在原文 text 中的绝对起止位置
+        const changeStart = position + relativeStart;
+        const changeEnd = position + relativeEnd;
+
+        // 提取要显示为删除线的原文片段
+        const originalText = suggestion.translatedText.substring(relativeStart, relativeEnd);
+
+        // 构建要显示为绿色的建议文本片段（只包含 insert 的内容）
+        const suggestedParts = changes
+            .filter(c => c.type === 'insert')
+            .map(c => c.text);
+        const suggestedText = suggestedParts.join('');
+
+        console.log('处理结果:');
+        console.log('绝对起始位置:', changeStart);
+        console.log('绝对结束位置:', changeEnd);
+        console.log('标记原文:', originalText);
+        console.log('标记建议文本:', suggestedText);
+
+        // 确保 start 不大于 end
+        if (changeStart > changeEnd) {
+             console.warn('计算出的 start 大于 end，可能存在问题', { changeStart, changeEnd });
+             // 这里可以根据需要决定如何处理，例如返回 null 或调整 end
+             // return null;
         }
 
-        // 替换操作
         return {
-            start: position + diff.start,
-            end: position + diff.end,
-            originalText: suggestion.translatedText.substring(diff.start, diff.end),
-            translatedText: suggestion.translatedText,
-            suggestedText: diff.text,
+            start: changeStart,
+            end: changeEnd,
+            originalText,
+            translatedText: suggestion.translatedText, // 保留完整的译文用于查找
+            suggestedText,
             type: suggestion.type,
             description: suggestion.description,
             reason: suggestion.reason
         };
-    }).filter((s): s is NonNullable<typeof s> => s !== null);
+    }).filter((s): s is NonNullable<typeof s> => {
+        if (!s) {
+            console.log('❌ 建议被过滤：返回值为null');
+        }
+        return s !== null;
+    });
 } 
