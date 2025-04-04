@@ -18,6 +18,32 @@ interface ApiResponse {
     }>;
 }
 
+// 定义问题类型接口
+interface Issue {
+    type: string;
+    description: string;
+    originalText: string;
+    translatedText: string;
+    suggestion: string;
+    start: number;
+    end: number;
+    reason: string;
+    operations?: Array<{
+        type: 'keep' | 'delete' | 'insert' | 'replace';
+        sourceStart: number;
+        sourceEnd: number;
+        targetStart: number;
+        targetEnd: number;
+        content?: string;
+    }>;
+}
+
+// 定义反馈类型接口
+interface SegmentFeedback {
+    segmentIndex: number;
+    issues: Issue[];
+}
+
 export async function POST(request: Request) {
     try {
         const { originalText, translatedText } = await request.json();
@@ -172,69 +198,15 @@ function segmentText(text: string): string[] {
     return segments.map((segment, index) => `[${index + 1}] ${segment.trim()}`);
 }
 
-// 模拟评估过程
-async function simulateEvaluation(originalSegments: string[], translatedSegments: string[]) {
-    // 分析每个段落的问题
-    const segmentFeedbacks = generateSegmentFeedbacks(originalSegments, translatedSegments);
-    
-    // 根据问题数量和严重程度计算评分
-    const segmentScores = originalSegments.map((originalSegment, index) => {
-        const feedback = segmentFeedbacks.find(f => f.segmentIndex === index);
-        if (!feedback) return 85; // 没有明显问题，给予较高基础分
-        
-        // 根据问题严重程度扣分
-        let score = 85;
-        feedback.issues.forEach(issue => {
-            switch (issue.type) {
-                case "术语不准确":
-                    score -= 10;
-                    break;
-                case "重复内容":
-                    score -= 8;
-                    break;
-                case "省略重要信息":
-                    score -= 15;
-                    break;
-                case "过度直译":
-                    score -= 5;
-                    break;
-                default:
-                    score -= 3;
-            }
-        });
-        
-        return Math.max(60, score); // 确保分数不会低于60分
-    });
-
-    // 计算总体评分
-    const overallScore = Math.round(
-        segmentScores.reduce((sum, score) => sum + score, 0) / segmentScores.length
-    );
-
-    // 生成整体评论
-    const comments = generateOverallComments(segmentFeedbacks, overallScore);
-
-    // 模拟API延迟
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    return {
-        score: overallScore,
-        comments,
-        segmentScores,
-        segmentFeedbacks,
-        originalSegments,
-        translatedSegments
-    };
-}
-
 // 生成整体评论
-function generateOverallComments(segmentFeedbacks: any[], score: number): string[] {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function generateOverallComments(segmentFeedbacks: SegmentFeedback[], score: number): string[] {
     const comments: string[] = [];
     
     // 统计问题类型
     const issueTypes = new Map<string, number>();
     segmentFeedbacks.forEach(feedback => {
-        feedback.issues.forEach((issue: any) => {
+        feedback.issues.forEach((issue: Issue) => {
             issueTypes.set(issue.type, (issueTypes.get(issue.type) || 0) + 1);
         });
     });
@@ -365,38 +337,8 @@ function calculateMinimumEditOperations(source: string, target: string): {
 }
 
 // 改进的术语检查函数
-function analyzeTermIssues(originalContent: string, translatedContent: string): {
-    type: string;
-    description: string;
-    originalText: string;
-    translatedText: string;
-    suggestion: string;
-    reason: string;
-    operations?: Array<{
-        type: 'keep' | 'delete' | 'insert' | 'replace';
-        sourceStart: number;
-        sourceEnd: number;
-        targetStart: number;
-        targetEnd: number;
-        content?: string;
-    }>;
-}[] {
-    const issues: {
-        type: string;
-        description: string;
-        originalText: string;
-        translatedText: string;
-        suggestion: string;
-        reason: string;
-        operations?: Array<{
-            type: 'keep' | 'delete' | 'insert' | 'replace';
-            sourceStart: number;
-            sourceEnd: number;
-            targetStart: number;
-            targetEnd: number;
-            content?: string;
-        }>;
-    }[] = [];
+function analyzeTermIssues(originalContent: string, translatedContent: string): Issue[] {
+    const issues: Issue[] = [];
 
     // 扩展术语列表
     const terms = [
@@ -457,6 +399,8 @@ function analyzeTermIssues(originalContent: string, translatedContent: string): 
                         translatedText: actualTranslation,
                         suggestion: term.zh,
                         reason: term.reason,
+                        start: 0,  // 这些会在调用时被正确赋值
+                        end: 0,
                         operations: operations
                     });
                 }
@@ -468,21 +412,9 @@ function analyzeTermIssues(originalContent: string, translatedContent: string): 
 }
 
 // 在生成段落反馈时包含编辑操作信息
-function generateSegmentFeedbacks(originalSegments: string[], translatedSegments: string[]) {
-    const feedbacks: {
-        segmentIndex: number;
-        issues: {
-            type: string;
-            description: string;
-            originalText: string;
-            translatedText: string;
-            suggestion: string;
-            start: number;
-            end: number;
-            reason: string;
-            operations?: Array<any>;
-        }[];
-    }[] = [];
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function generateSegmentFeedbacks(originalSegments: string[], translatedSegments: string[]): SegmentFeedback[] {
+    const feedbacks: SegmentFeedback[] = [];
 
     // 为每个段落生成问题
     for (let segmentIndex = 0; segmentIndex < translatedSegments.length; segmentIndex++) {
@@ -556,42 +488,8 @@ function analyzeSegmentIssues(
     originalContent: string,
     translatedContent: string,
     checkedRanges: { start: number; end: number }[]
-): {
-    type: string;
-    description: string;
-    originalText: string;
-    translatedText: string;
-    suggestion: string;
-    start: number;
-    end: number;
-    reason: string;
-    operations?: Array<{
-        type: 'keep' | 'delete' | 'insert' | 'replace';
-        sourceStart: number;
-        sourceEnd: number;
-        targetStart: number;
-        targetEnd: number;
-        content?: string;
-    }>;
-}[] {
-    const issues: {
-        type: string;
-        description: string;
-        originalText: string;
-        translatedText: string;
-        suggestion: string;
-        start: number;
-        end: number;
-        reason: string;
-        operations?: Array<{
-            type: 'keep' | 'delete' | 'insert' | 'replace';
-            sourceStart: number;
-            sourceEnd: number;
-            targetStart: number;
-            targetEnd: number;
-            content?: string;
-        }>;
-    }[] = [];
+): Issue[] {
+    const issues: Issue[] = [];
 
     // 使用更智能的分词方式
     const segments = translatedContent.split(/([。！？，；：\s])/);
@@ -690,7 +588,6 @@ function checkNumberFormat(text: string, basePosition: number): {
 function checkDuplicateContent(segment: string, fullText: string, basePosition: number): { start: number; end: number } | null {
     if (segment.length < 5) return null;  // 忽略过短的片段
 
-    const segmentStart = basePosition;
     const segmentEnd = basePosition + segment.length;
 
     // 在当前位置之后查找重复
@@ -715,7 +612,7 @@ function checkDuplicateContent(segment: string, fullText: string, basePosition: 
 }
 
 // 检查特殊案例
-function checkSpecialCases(originalText: string, translatedText: string) {
+function checkSpecialCases(originalText: string, translatedText: string): Issue | null {
     // 检查 previous APs 的翻译
     if (originalText.includes("previous APs") &&
         translatedText.includes("之前的AP")) {
@@ -725,7 +622,9 @@ function checkSpecialCases(originalText: string, translatedText: string) {
             originalText: "之前的AP",
             translatedText: "之前的AP",
             suggestion: "之前的行动计划",
-            reason: "AP 应该翻译为'行动计划'，这样更容易理解。"
+            reason: "AP 应该翻译为'行动计划'，这样更容易理解。",
+            start: 0,
+            end: 0
         };
     }
 
@@ -737,7 +636,10 @@ function checkSpecialCases(originalText: string, translatedText: string) {
             description: "战略相关术语翻译不够准确",
             originalText: "EU Strategy for Cooperation in the Indo-Pacific",
             translatedText: "欧盟印太合作战略",
-            suggestion: "欧盟印太合作战略（EU Strategy for Cooperation in the Indo-Pacific）"
+            suggestion: "欧盟印太合作战略（EU Strategy for Cooperation in the Indo-Pacific）",
+            reason: "保留原文术语有助于读者理解和查找相关信息。",
+            start: 0,
+            end: 0
         };
     }
 
@@ -749,7 +651,10 @@ function checkSpecialCases(originalText: string, translatedText: string) {
             description: "安全相关术语翻译不够准确",
             originalText: "increase the EU's security profile in the region",
             translatedText: "提高欧盟在该区域的安全形象",
-            suggestion: "提升欧盟在该地区的安全存在感和影响力"
+            suggestion: "提升欧盟在该地区的安全存在感和影响力",
+            reason: "'security profile'不仅指形象，还包含存在感和影响力的含义。",
+            start: 0,
+            end: 0
         };
     }
 
@@ -761,7 +666,10 @@ function checkSpecialCases(originalText: string, translatedText: string) {
             description: "直译导致表达不自然",
             originalText: "accelerate clean energy transitions",
             translatedText: "加速清洁能源转换",
-            suggestion: "加快清洁能源转型"
+            suggestion: "加快清洁能源转型",
+            reason: "'清洁能源转型'是能源领域更为常用的表达方式。",
+            start: 0,
+            end: 0
         };
     }
 
@@ -773,7 +681,10 @@ function checkSpecialCases(originalText: string, translatedText: string) {
             description: "关键信息未被翻译",
             originalText: "In advancing the implementation of the EU Strategy for Cooperation in the Indo-Pacific (2021), Germany, France, and the Netherlands will launch joint initiatives within the EU in order to increase the EU's security profile in the region, strengthen and diversify its trade relations, accelerate clean energy transitions and intensify cooperation with countries in the region, including the Pacific Islands",
             translatedText: "德国、法国和荷兰在推动执行《欧盟印太合作战略（2021）》 （EU Strategy for Cooperation in the Indo-Pacific）时，将在欧盟内发起联合倡议，以提高欧盟在该区域的安全形象，加强其贸易关系并使其多样化，加速清洁能源转换，并加强与该区域各国，包括太平洋岛屿的合作",
-            suggestion: "德国、法国和荷兰在推动落实《欧盟印太合作战略（2021）》时，将在欧盟内启动联合行动计划，以提升欧盟在该地区的安全存在感和影响力，加强并多元化其贸易关系，加快清洁能源转型，并深化与该地区国家（包括太平洋岛国）的合作。"
+            suggestion: "德国、法国和荷兰在推动落实《欧盟印太合作战略（2021）》时，将在欧盟内启动联合行动计划，以提升欧盟在该地区的安全存在感和影响力，加强并多元化其贸易关系，加快清洁能源转型，并深化与该地区国家（包括太平洋岛国）的合作。",
+            reason: "建议使用更准确的术语并调整表达方式，使译文更符合正式外交文件的表达习惯。",
+            start: 0,
+            end: 0
         };
     }
 
@@ -850,119 +761,4 @@ function generateReason(type: string, originalText: string, suggestion: string):
         default:
             return `建议将"${originalText}"修改为"${suggestion}"，以提高翻译质量。`;
     }
-}
-
-// 修改生成建议的函数，返回建议和理由
-function generateTermSuggestion(text: string): { suggestion: string; reason: string } {
-    const commonTerms: Record<string, { suggestions: string[]; reason: string }> = {
-        "软件": {
-            suggestions: ["应用程序", "软件应用", "应用软件"],
-            reason: "在软件开发领域，需要根据具体语境选择更准确的术语。"
-        },
-        "数据": {
-            suggestions: ["数据集", "信息", "资料"],
-            reason: "在数据科学领域，不同场景下的'数据'有特定的专业术语。"
-        },
-        "用户": {
-            suggestions: ["使用者", "客户", "最终用户"],
-            reason: "在用户界面设计中，需要根据具体场景选择更准确的术语。"
-        },
-        "界面": {
-            suggestions: ["用户界面", "交互界面", "操作界面"],
-            reason: "在界面设计中，需要根据具体功能选择更准确的术语。"
-        },
-        "功能": {
-            suggestions: ["特性", "功能特性", "特性功能"],
-            reason: "在功能描述中，需要根据具体功能选择更准确的术语。"
-        },
-        "系统": {
-            suggestions: ["平台", "系统平台", "操作系统"],
-            reason: "在系统描述中，需要根据具体系统选择更准确的术语。"
-        },
-        "战略": {
-            suggestions: ["策略", "战略规划", "战略方针"],
-            reason: "在战略描述中，需要根据具体战略选择更准确的术语。"
-        }
-    };
-
-    for (const [term, info] of Object.entries(commonTerms)) {
-        if (text.includes(term)) {
-            const suggestion = info.suggestions[Math.floor(Math.random() * info.suggestions.length)];
-            return {
-                suggestion,
-                reason: info.reason
-            };
-        }
-    }
-
-    return {
-        suggestion: text,
-        reason: "建议参考相关领域的术语表，使用更专业的表述。"
-    };
-}
-
-// 修改其他生成建议的函数，使其返回建议和理由
-function generateGrammarSuggestion(text: string): { suggestion: string; reason: string } {
-    if (text.length > 10) {
-        const parts = text.split(' ');
-        if (parts.length > 3) {
-            const temp = parts[1];
-            parts[1] = parts[2];
-            parts[2] = temp;
-            return {
-                suggestion: parts.join(' '),
-                reason: "调整语序可以使句子更符合中文的语法习惯，提高可读性。"
-            };
-        }
-    }
-
-    return {
-        suggestion: text,
-        reason: "建议调整句子结构，使其更符合中文的表达习惯。"
-    };
-}
-
-function generateFluentSuggestion(text: string): { suggestion: string; reason: string } {
-    return {
-        suggestion: text,
-        reason: "直译往往会导致表达生硬，建议采用更符合中文表达习惯的说法。"
-    };
-}
-
-function generateOmissionSuggestion(originalText: string, translatedText: string): { suggestion: string; reason: string } {
-    const keyTerms = [
-        { en: "implementation", zh: "实施", reason: "这是政策执行过程中的关键术语" },
-        { en: "strategy", zh: "战略", reason: "这是重要的战略规划术语" },
-        { en: "cooperation", zh: "合作", reason: "这是重要的合作关系术语" },
-        { en: "security", zh: "安全", reason: "这是重要的安全相关术语" },
-        { en: "trade", zh: "贸易", reason: "这是重要的经济活动术语" },
-        { en: "energy", zh: "能源", reason: "这是重要的能源相关术语" },
-        { en: "initiative", zh: "倡议", reason: "这是重要的行动术语" },
-        { en: "strengthen", zh: "加强", reason: "这是重要的政策目标术语" },
-        { en: "diversify", zh: "多样化", reason: "这是重要的经济活动术语" },
-        { en: "accelerate", zh: "加速", reason: "这是重要的政策目标术语" },
-        { en: "intensify", zh: "加强", reason: "这是重要的政策目标术语" }
-    ];
-
-    for (const term of keyTerms) {
-        if (originalText.toLowerCase().includes(term.en.toLowerCase()) &&
-            !translatedText.includes(term.zh)) {
-            return {
-                suggestion: translatedText.replace(/。$/, `${term.zh}。`),
-                reason: `原文中的"${term.en}"是重要信息，${term.reason}，不应省略。`
-            };
-        }
-    }
-
-    return {
-        suggestion: translatedText,
-        reason: "建议重新审视原文，确保所有关键信息都被完整翻译。"
-    };
-}
-
-function generateGenericSuggestion(text: string): { suggestion: string; reason: string } {
-    return {
-        suggestion: text,
-        reason: "建议重新审视此处翻译，确保准确性和自然度。"
-    };
 } 
