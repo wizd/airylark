@@ -1,6 +1,23 @@
 import { NextResponse } from 'next/server';
 
-// 模拟翻译质量评估API
+// 使用环境变量
+const API_KEY = process.env.TRANSLATION_API_KEY || '';
+const API_URL = process.env.TRANSLATION_BASE_URL || '';
+const MODEL = process.env.TRANSLATION_MODEL || 'deepseek-ai/DeepSeek-V3';
+
+interface Message {
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+}
+
+interface ApiResponse {
+    choices: Array<{
+        message: {
+            content: string;
+        };
+    }>;
+}
+
 export async function POST(request: Request) {
     try {
         const { originalText, translatedText } = await request.json();
@@ -13,14 +30,124 @@ export async function POST(request: Request) {
             );
         }
 
-        // 分割文本为段落
-        const originalSegments = segmentText(originalText);
-        const translatedSegments = segmentText(translatedText);
+        if (!API_KEY) {
+            return NextResponse.json({ error: 'API 密钥未配置' }, { status: 500 });
+        }
 
-        // 模拟评估过程（在实际应用中，这里应该调用真实的评估服务）
-        const result = await simulateEvaluation(originalSegments, translatedSegments);
+        // 构建评估提示词
+        const prompt = `
+请对以下翻译进行质量评估：
 
-        return NextResponse.json(result);
+原文：
+${originalText}
+
+译文：
+${translatedText}
+
+请从以下几个方面进行评估：
+1. 准确性：译文是否准确传达了原文的意思
+2. 流畅性：译文是否符合中文表达习惯
+3. 术语使用：专业术语的翻译是否准确
+4. 风格一致性：译文是否保持了原文的风格
+
+请按照以下格式返回评估结果：
+{
+    "score": 评分（0-100分）,
+    "comments": [
+        "具体评价1",
+        "具体评价2",
+        ...
+    ],
+    "segmentScores": [
+        段落1评分,
+        段落2评分,
+        ...
+    ],
+    "segmentFeedbacks": [
+        {
+            "segmentIndex": 段落索引,
+            "issues": [
+                {
+                    "type": "问题类型",
+                    "description": "问题描述",
+                    "originalText": "原文片段",
+                    "translatedText": "译文片段",
+                    "suggestion": "建议修改",
+                    "start": 起始位置,
+                    "end": 结束位置,
+                    "reason": "修改理由"
+                }
+            ]
+        }
+    ]
+}
+
+请确保返回的是有效的JSON格式。
+`;
+
+        const messages: Message[] = [
+            { role: 'system', content: '你是一个专业的翻译质量评估专家。请严格按照要求的JSON格式返回评估结果。' },
+            { role: 'user', content: prompt }
+        ];
+
+        // 调用 API
+        const response = await fetch(API_URL + '/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: MODEL,
+                messages,
+                temperature: 0.3, // 降低随机性，使评估更稳定
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            return NextResponse.json({
+                error: `API 请求失败: ${errorData.error?.message || response.statusText}`
+            }, { status: response.status });
+        }
+
+        const data: ApiResponse = await response.json();
+        const result = data.choices[0]?.message?.content || '';
+
+        try {
+            // 处理可能存在的 Markdown 代码块标记
+            let jsonContent = result;
+            if (result.includes('```json')) {
+                jsonContent = result.split('```json')[1].split('```')[0].trim();
+            } else if (result.includes('```')) {
+                jsonContent = result.split('```')[1].split('```')[0].trim();
+            }
+            
+            console.log('处理后的JSON内容:', jsonContent);
+            const evaluationResult = JSON.parse(jsonContent);
+            
+            // 验证必要的字段
+            if (!evaluationResult.score || !evaluationResult.comments || !evaluationResult.segmentScores) {
+                throw new Error('评估结果缺少必要字段');
+            }
+            
+            // 分割文本为段落
+            const originalSegments = segmentText(originalText);
+            const translatedSegments = segmentText(translatedText);
+
+            return NextResponse.json({
+                ...evaluationResult,
+                originalSegments,
+                translatedSegments
+            });
+        } catch (error) {
+            console.error('解析评估结果失败:', error);
+            console.error('原始内容:', result);
+            return NextResponse.json(
+                { error: `解析评估结果失败: ${error instanceof Error ? error.message : String(error)}` },
+                { status: 500 }
+            );
+        }
     } catch (error) {
         console.error('翻译质量评估失败:', error);
         return NextResponse.json(
@@ -425,6 +552,14 @@ function analyzeSegmentIssues(
     start: number;
     end: number;
     reason: string;
+    operations?: Array<{
+        type: 'keep' | 'delete' | 'insert' | 'replace';
+        sourceStart: number;
+        sourceEnd: number;
+        targetStart: number;
+        targetEnd: number;
+        content?: string;
+    }>;
 }[] {
     const issues: {
         type: string;
@@ -435,6 +570,14 @@ function analyzeSegmentIssues(
         start: number;
         end: number;
         reason: string;
+        operations?: Array<{
+            type: 'keep' | 'delete' | 'insert' | 'replace';
+            sourceStart: number;
+            sourceEnd: number;
+            targetStart: number;
+            targetEnd: number;
+            content?: string;
+        }>;
     }[] = [];
 
     // 使用更智能的分词方式
@@ -461,7 +604,8 @@ function analyzeSegmentIssues(
                     suggestion,
                     start,
                     end,
-                    reason: "数字的表达方式需要符合中文写作规范"
+                    reason: "数字的表达方式需要符合中文写作规范",
+                    operations: numberIssues.operations
                 });
                 checkedRanges.push({ start, end });
             }
@@ -478,7 +622,8 @@ function analyzeSegmentIssues(
                 suggestion: "删除重复内容",
                 start: duplicateIssue.start,
                 end: duplicateIssue.end,
-                reason: "文本中出现了不必要的重复内容，影响阅读流畅度"
+                reason: "文本中出现了不必要的重复内容，影响阅读流畅度",
+                operations: calculateMinimumEditOperations(translatedContent.substring(duplicateIssue.start, duplicateIssue.end), translatedContent.substring(duplicateIssue.start, duplicateIssue.end)).operations
             });
             checkedRanges.push(duplicateIssue);
         }
@@ -490,7 +635,19 @@ function analyzeSegmentIssues(
 }
 
 // 检查数字格式
-function checkNumberFormat(text: string, basePosition: number): { start: number; end: number; suggestion: string } | null {
+function checkNumberFormat(text: string, basePosition: number): { 
+    start: number; 
+    end: number; 
+    suggestion: string;
+    operations?: Array<{
+        type: 'keep' | 'delete' | 'insert' | 'replace';
+        sourceStart: number;
+        sourceEnd: number;
+        targetStart: number;
+        targetEnd: number;
+        content?: string;
+    }>;
+} | null {
     const numberPattern = /\d+\s+\d+(?:年|月|日)?/g;
     let match;
 

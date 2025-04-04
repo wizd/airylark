@@ -98,12 +98,12 @@ function AnnotatedTranslation({ text, suggestions }: AnnotatedTranslationProps) 
                      opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 whitespace-normal 
                      max-w-xs border border-gray-200 dark:border-gray-700"
         >
-          <div className="font-medium mb-1">{suggestion.type}</div>
-          <div className="text-gray-700 dark:text-gray-300">{suggestion.reason}</div>
+          <span className="font-medium mb-1">{suggestion.type}</span>
+          <span className="text-gray-700 dark:text-gray-300">{suggestion.reason}</span>
           {suggestion.suggestedText && (
-            <div className="mt-1 text-green-600 dark:text-green-400">
+            <span className="mt-1 text-green-600 dark:text-green-400">
               建议：{suggestion.suggestedText}
-            </div>
+            </span>
           )}
         </span>
       </span>
@@ -229,10 +229,17 @@ export default function TranslationQualityEvaluator({
       });
 
       if (!response.ok) {
-        throw new Error("评估请求失败");
+        const errorData = await response.json();
+        console.error('评估请求失败详情:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData
+        });
+        throw new Error(`评估请求失败: ${errorData.error || response.statusText}`);
       }
 
       const result = await response.json();
+      console.log('评估结果:', result);
 
       // 更新状态
       setOriginalSegments(result.originalSegments);
@@ -244,8 +251,8 @@ export default function TranslationQualityEvaluator({
         segmentFeedbacks: result.segmentFeedbacks
       });
     } catch (error) {
-      console.error("评估失败:", error);
-      alert("评估过程中出现错误，请稍后重试");
+      console.error("评估失败详情:", error);
+      alert(`评估过程中出现错误: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsEvaluating(false);
     }
