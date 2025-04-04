@@ -123,7 +123,7 @@ ${translatedText}
                 jsonContent = result.split('```')[1].split('```')[0].trim();
             }
             
-            console.log('处理后的JSON内容:', jsonContent);
+            console.log('processedContent:', jsonContent);
             const evaluationResult = JSON.parse(jsonContent);
             
             // 验证必要的字段
