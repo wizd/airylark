@@ -16,3 +16,26 @@ services:
     # 如果需要持久化存储，可以添加volumes配置
     # volumes:
     #   - ./data:/app/data
+    depends_on:
+      - mcp-server
+
+  mcp-server:
+    build:
+      context: ./mcp-server
+      dockerfile: Dockerfile
+    ports:
+      - "3041:3041"
+    environment:
+      - NODE_ENV=production
+      - TRANSLATION_API_KEY=${TRANSLATION_API_KEY}
+      - TRANSLATION_MODEL=${TRANSLATION_MODEL}
+      - TRANSLATION_BASE_URL=${TRANSLATION_BASE_URL}
+      - PORT=3041
+      - USE_HTTP=true
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:3041/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

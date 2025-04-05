@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
+import { translateWithMcp } from '@/app/services/translationApi';
 
 // 这里在服务器端使用环境变量
 const API_KEY = process.env.TRANSLATION_API_KEY || '';
 const API_URL = process.env.TRANSLATION_BASE_URL || '';
 const MODEL = process.env.TRANSLATION_MODEL || 'deepseek-ai/DeepSeek-V3';
+const USE_MCP = process.env.USE_MCP === 'true';
 
 interface Message {
     role: 'system' | 'user' | 'assistant';
@@ -39,6 +41,34 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: '缺少文本参数' }, { status: 400 });
         }
 
+        // 如果使用MCP服务器
+        if (USE_MCP) {
+            try {
+                // 构建提示词
+                const prompt = `
+分析以下文本，识别其类型、风格以及专业知识领域，并创建翻译规划和关键术语字典。
+请以JSON格式返回结果，包含以下字段：
+- contentType: 文本类型（如学术论文、新闻报道、技术文档等）
+- style: 文本风格（如正式、非正式、技术性等）
+- specializedKnowledge: 专业知识领域（数组）
+- keyTerms: 关键术语字典（对象，英文术语为键，中文翻译为值）
+
+请确保返回的是有效的JSON格式。
+
+源文本:
+${text.substring(0, 1500)}${text.length > 1500 ? '...' : ''}
+`;
+                
+                // 使用MCP服务器翻译
+                const result = await translateWithMcp(prompt, 'zh', 'zh', true);
+                return NextResponse.json({ result });
+            } catch (mcpError) {
+                console.error('MCP服务器处理失败，回退到直接API调用:', mcpError);
+                // 如果MCP失败，继续使用直接API调用
+            }
+        }
+
+        // 直接API调用方式
         if (!API_KEY) {
             return NextResponse.json({ error: 'API 密钥未配置' }, { status: 500 });
         }

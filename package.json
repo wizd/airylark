@@ -7,7 +7,7 @@
   "author": "AiryLark Team",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/airylark.git"
+    "url": "https://github.com/wizd/airylark.git"
   },
   "keywords": [
     "next.js",
@@ -18,12 +18,20 @@
   ],
   "scripts": {
     "dev": "next dev",
+    "dev:mcp": "npm run dev:mcp:server & npm run dev",
+    "dev:mcp:server": "cd mcp-server && npm run dev",
     "build": "next build",
+    "build:all": "next build && npm run build:mcp",
+    "build:mcp": "cd mcp-server && npm run build",
     "start": "next start",
-    "lint": "next lint"
+    "start:all": "npm run start:mcp:server & npm run start",
+    "start:mcp:server": "cd mcp-server && npm run start",
+    "lint": "next lint",
+    "lint:all": "next lint && cd mcp-server && npm run lint"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "@modelcontextprotocol/sdk": "^1.8.0",
     "mammoth": "^1.9.0",
     "next": "15.2.1",
     "react": "^19.0.0",

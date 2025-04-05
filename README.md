@@ -76,16 +76,34 @@ AiryLark是一个开源的文档处理工具，支持多种文件格式的输入
 首先，运行开发服务器：
 
 ```bash
+# 同时启动Next.js应用和MCP服务器
+npm run dev:mcp
+
+# 或仅启动Next.js应用
 npm run dev
-# 或
-yarn dev
-# 或
-pnpm dev
-# 或
-bun dev
 ```
 
 在浏览器中打开 [http://localhost:3000](http://localhost:3000) 查看结果。
+
+### MCP服务器
+
+AiryLark包含了一个ModelContextProtocol(MCP)服务器组件，用于提供高质量的翻译服务。MCP服务器可以：
+
+- 通过标准协议与大型模型(如Claude)集成
+- 提供结构化的翻译API
+- 执行三阶段翻译流程，提高翻译质量
+
+MCP服务器默认运行在端口3041，可以通过以下方式单独操作：
+
+```bash
+# 构建MCP服务器
+npm run build:mcp
+
+# 启动MCP服务器
+npm run start:mcp:server
+```
+
+通过环境变量`USE_MCP=true`可以控制应用是否使用MCP服务器进行翻译。
 
 ## 部署指南
 

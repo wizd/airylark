@@ -1,8 +1,80 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+
 export interface TranslationPlan {
     contentType: string;
     style: string;
     specializedKnowledge: string[];
     keyTerms: Record<string, string>;
+}
+
+// MCP客户端实例
+let mcpClient: Client | null = null;
+
+/**
+ * 初始化并获取MCP客户端
+ * @returns 初始化好的MCP客户端
+ */
+async function getMcpClient(): Promise<Client> {
+    if (mcpClient) {
+        return mcpClient;
+    }
+
+    const mcpServerUrl = process.env.MCP_SERVER_URL || 'http://localhost:3041';
+    console.log(`正在连接MCP服务器: ${mcpServerUrl}`);
+    
+    try {
+        const transport = new SSEClientTransport(mcpServerUrl);
+        mcpClient = new Client(
+            { name: "airylark-client", version: "0.1.0" },
+            { capabilities: { tools: {} } }
+        );
+        
+        await mcpClient.connect(transport);
+        console.log('已成功连接到MCP服务器');
+        return mcpClient;
+    } catch (error) {
+        console.error('连接MCP服务器失败:', error);
+        throw new Error('无法连接到翻译服务器');
+    }
+}
+
+/**
+ * 通过MCP服务器进行翻译
+ * @param text 要翻译的文本
+ * @param targetLanguage 目标语言代码，例如'zh'、'en'
+ * @param sourceLanguage 源语言代码(可选)
+ * @param highQuality 是否使用高质量翻译模式(默认true)
+ * @returns 翻译后的文本
+ */
+export async function translateWithMcp(
+    text: string,
+    targetLanguage: string = 'zh',
+    sourceLanguage?: string,
+    highQuality: boolean = true
+): Promise<string> {
+    try {
+        const client = await getMcpClient();
+        
+        const result = await client.callTool({
+            name: "translate_text",
+            arguments: {
+                text,
+                target_language: targetLanguage,
+                source_language: sourceLanguage,
+                high_quality: highQuality
+            }
+        });
+        
+        if (!result.content || !result.content[0] || typeof result.content[0].text !== 'string') {
+            throw new Error('MCP服务器返回了无效的翻译结果');
+        }
+        
+        return result.content[0].text;
+    } catch (error) {
+        console.error('MCP翻译失败:', error);
+        throw new Error(`MCP翻译失败: ${error instanceof Error ? error.message : String(error)}`);
+    }
 }
 
 /**
