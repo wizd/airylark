@@ -41,6 +41,15 @@ export function tryParseJson<T>(jsonString: string): T | null {
     }
 }
 
+import { 
+    createTranslationPlanAction, 
+    createTranslationPlanStreamAction,
+    translateSegmentAction,
+    translateSegmentStreamAction,
+    reviewTranslationAction,
+    reviewTranslationStreamAction
+} from './translationActions';
+
 /**
  * 创建翻译规划
  * @param text 源文本
@@ -48,23 +57,9 @@ export function tryParseJson<T>(jsonString: string): T | null {
  */
 export async function createTranslationPlan(text: string): Promise<string> {
     try {
-        const response = await fetch('/api/translation/plan', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ text }),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || '创建翻译规划失败');
-        }
-
-        const data = await response.json();
-        return data.result;
+        return await createTranslationPlanAction(text);
     } catch (error) {
-        console.error('调用翻译规划 API 时出错:', error);
+        console.error('调用翻译规划时出错:', error);
         throw error;
     }
 }
@@ -80,24 +75,8 @@ export async function createTranslationPlanStream(
     onProgress: (partialResult: string) => void
 ): Promise<string> {
     try {
-        const response = await fetch('/api/translation/plan/stream', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ text }),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || '创建翻译规划失败');
-        }
-
-        if (!response.body) {
-            throw new Error('响应体为空');
-        }
-
-        const reader = response.body.getReader();
+        const stream = await createTranslationPlanStreamAction(text);
+        const reader = stream.getReader();
         const decoder = new TextDecoder();
         let result = '';
 
@@ -112,7 +91,7 @@ export async function createTranslationPlanStream(
 
         return result;
     } catch (error) {
-        console.error('调用流式翻译规划 API 时出错:', error);
+        console.error('调用流式翻译规划时出错:', error);
         throw error;
     }
 }
@@ -128,23 +107,9 @@ export async function translateSegment(
     translationPlan: TranslationPlan
 ): Promise<string> {
     try {
-        const response = await fetch('/api/translation/segment', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ segment, translationPlan }),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || '翻译段落失败');
-        }
-
-        const data = await response.json();
-        return data.result;
+        return await translateSegmentAction(segment, translationPlan);
     } catch (error) {
-        console.error('调用翻译段落 API 时出错:', error);
+        console.error('调用翻译段落时出错:', error);
         throw error;
     }
 }
@@ -162,24 +127,8 @@ export async function translateSegmentStream(
     onProgress: (partialResult: string) => void
 ): Promise<string> {
     try {
-        const response = await fetch('/api/translation/segment/stream', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ segment, translationPlan }),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || '翻译段落失败');
-        }
-
-        if (!response.body) {
-            throw new Error('响应体为空');
-        }
-
-        const reader = response.body.getReader();
+        const stream = await translateSegmentStreamAction(segment, translationPlan);
+        const reader = stream.getReader();
         const decoder = new TextDecoder();
         let result = '';
 
@@ -194,7 +143,7 @@ export async function translateSegmentStream(
 
         return result;
     } catch (error) {
-        console.error('调用流式翻译段落 API 时出错:', error);
+        console.error('调用流式翻译段落时出错:', error);
         throw error;
     }
 }
@@ -210,23 +159,9 @@ export async function reviewTranslation(
     translationPlan: TranslationPlan
 ): Promise<string> {
     try {
-        const response = await fetch('/api/translation/review', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ translatedText, translationPlan }),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || '审校译文失败');
-        }
-
-        const data = await response.json();
-        return data.result;
+        return await reviewTranslationAction(translatedText, translationPlan);
     } catch (error) {
-        console.error('调用审校译文 API 时出错:', error);
+        console.error('调用审校译文时出错:', error);
         throw error;
     }
 }
@@ -244,24 +179,8 @@ export async function reviewTranslationStream(
     onProgress: (partialResult: string) => void
 ): Promise<string> {
     try {
-        const response = await fetch('/api/translation/review/stream', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ translatedText, translationPlan }),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || '审校译文失败');
-        }
-
-        if (!response.body) {
-            throw new Error('响应体为空');
-        }
-
-        const reader = response.body.getReader();
+        const stream = await reviewTranslationStreamAction(translatedText, translationPlan);
+        const reader = stream.getReader();
         const decoder = new TextDecoder();
         let result = '';
 
@@ -276,7 +195,7 @@ export async function reviewTranslationStream(
 
         return result;
     } catch (error) {
-        console.error('调用流式审校译文 API 时出错:', error);
+        console.error('调用流式审校译文时出错:', error);
         throw error;
     }
 } 

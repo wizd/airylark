@@ -29,7 +29,6 @@ services:
       - TRANSLATION_MODEL=${TRANSLATION_MODEL}
       - TRANSLATION_BASE_URL=${TRANSLATION_BASE_URL}
       - PORT=3041
-      - USE_HTTP=true
     restart: always
     healthcheck:
       test: ["CMD", "wget", "--spider", "http://localhost:3041/health"]

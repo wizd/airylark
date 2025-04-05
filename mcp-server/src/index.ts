@@ -518,7 +518,7 @@ server.resource(
 (async function main() {
   try {
     // 根据环境变量决定使用哪种传输方式
-    if (process.env.NODE_ENV === 'production' || process.env.USE_HTTP === 'true') {
+    if (process.env.NODE_ENV === 'production') {
       // 使用HTTP/SSE传输方式
       console.log(`启动HTTP MCP服务器，端口: ${PORT}`);
       
