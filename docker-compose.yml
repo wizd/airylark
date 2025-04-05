@@ -16,8 +16,6 @@ services:
     # 如果需要持久化存储，可以添加volumes配置
     # volumes:
     #   - ./data:/app/data
-    depends_on:
-      - mcp-server
 
   mcp-server:
     build:

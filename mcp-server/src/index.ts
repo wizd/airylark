@@ -225,38 +225,72 @@ async function createTranslationPlan(
     throw new Error('缺少翻译API的环境变量配置');
   }
 
-  const response = await fetch(`${baseUrl}/create-translation-plan`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      text,
-      target_language,
-      source_language,
-      model,
-    }),
-  });
+  // 构建提示信息，用于创建翻译规划
+  const systemPrompt = `你是专业翻译分析专家。请分析以下${source_language || ""}文本，创建一个翻译规划用于将其翻译成${target_language}。
+返回一个JSON对象，包含以下字段：
+1. contentType: 文本的类型或体裁（如"技术文档"、"新闻报道"、"科普文章"等）
+2. style: 翻译应采用的风格（如"正式学术"、"通俗易懂"、"简明直接"等）
+3. specializedKnowledge: 文本涉及的专业领域，返回一个字符串数组
+4. keyTerms: 一个对象，包含文本中的关键术语及其对应的${target_language}翻译
 
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw new Error(`创建翻译规划失败: ${response.status} ${response.statusText} ${errorText}`);
-  }
+只返回JSON格式的数据，不要包含任何解释或说明。`;
 
-  const data = await response.json() as TranslationPlanResponse;
-  
-  // 确保返回结果包含必要字段
-  if (!data.contentType || !data.style || !Array.isArray(data.specializedKnowledge)) {
-    throw new Error('创建翻译规划返回无效响应');
+  try {
+    // 使用OpenAI兼容API进行翻译规划创建
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: text }
+        ],
+        temperature: 0.3,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`创建翻译规划失败: ${response.status} ${response.statusText} ${errorText}`);
+    }
+
+    const data = await response.json() as {
+      choices: [{
+        message: {
+          content: string;
+        }
+      }]
+    };
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message.content) {
+      throw new Error('翻译API返回无效响应');
+    }
+    
+    // 解析JSON响应
+    const planText = data.choices[0].message.content.trim();
+    const planJson = JSON.parse(cleanJsonString(planText));
+    
+    // 确保返回结果符合TranslationPlan类型
+    return {
+      contentType: planJson.contentType || "一般文本",
+      style: planJson.style || "标准",
+      specializedKnowledge: Array.isArray(planJson.specializedKnowledge) ? planJson.specializedKnowledge : [],
+      keyTerms: planJson.keyTerms || {}
+    };
+  } catch (error) {
+    console.error('创建翻译规划失败:', error);
+    // 返回默认翻译规划，以便流程继续
+    return {
+      contentType: "一般文本",
+      style: "标准",
+      specializedKnowledge: [],
+      keyTerms: {}
+    };
   }
-  
-  return {
-    contentType: data.contentType,
-    style: data.style,
-    specializedKnowledge: data.specializedKnowledge,
-    keyTerms: data.keyTerms || {}
-  };
 }
 
 // 阶段2：翻译段落
@@ -274,33 +308,76 @@ async function translateSegment(
     throw new Error('缺少翻译API的环境变量配置');
   }
 
-  const response = await fetch(`${baseUrl}/translate-segment`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      text: segment,
-      translation_plan: plan,
-      target_language,
-      source_language,
-      model,
-    }),
-  });
+  // 构建关键术语列表
+  const keyTermsList = Object.entries(plan.keyTerms)
+    .map(([term, translation]) => `- "${term}": "${translation}"`)
+    .join('\n');
 
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw new Error(`翻译段落失败: ${response.status} ${response.statusText} ${errorText}`);
-  }
+  // 构建提示信息，用于段落翻译
+  const systemPrompt = `你是一位专业${plan.specializedKnowledge.join('、')}领域的翻译专家。请将以下${source_language || ""}文本翻译成${target_language}。
 
-  const data = await response.json() as TranslateSegmentResponse;
-  
-  if (!data.translated_text) {
-    throw new Error('翻译段落返回无效响应');
+## 翻译规划
+- 文本类型: ${plan.contentType}
+- 风格要求: ${plan.style}
+- 专业领域: ${plan.specializedKnowledge.join('、')}
+
+## 关键术语表
+${keyTermsList}
+
+请遵循以下要求:
+1. 准确传达原文的全部信息和意图
+2. 使用合适的${target_language}表达方式，避免直译
+3. 保持专业领域的术语一致性
+4. 风格符合${plan.style}的要求
+5. 只输出翻译结果，不要添加解释或原文
+
+===TRANSLATION===`;
+
+  try {
+    // 使用OpenAI兼容API进行段落翻译
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: segment }
+        ],
+        temperature: 0.3,
+        max_tokens: Math.max(1024, segment.length * 2),
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`翻译段落失败: ${response.status} ${response.statusText} ${errorText}`);
+    }
+
+    const data = await response.json() as {
+      choices: [{
+        message: {
+          content: string;
+        }
+      }]
+    };
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message.content) {
+      throw new Error('翻译API返回无效响应');
+    }
+    
+    const translationResult = data.choices[0].message.content.trim();
+    
+    // 如果返回包含分隔标记，提取实际翻译部分
+    const parts = translationResult.split("===TRANSLATION===");
+    return parts.length > 1 ? parts[1].trim() : translationResult;
+  } catch (error) {
+    console.error('翻译段落失败:', error);
+    return `[翻译错误: ${error instanceof Error ? error.message : String(error)}]`;
   }
-  
-  return data.translated_text;
 }
 
 // 阶段3：审校译文
@@ -317,32 +394,97 @@ async function reviewTranslation(
     throw new Error('缺少翻译API的环境变量配置');
   }
 
-  const response = await fetch(`${baseUrl}/review-translation`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      translation,
-      translation_plan: plan,
-      target_language,
-      model,
-    }),
-  });
+  // 构建关键术语列表
+  const keyTermsList = Object.entries(plan.keyTerms)
+    .map(([term, translation]) => `- "${term}": "${translation}"`)
+    .join('\n');
 
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw new Error(`审校译文失败: ${response.status} ${response.statusText} ${errorText}`);
-  }
+  // 构建提示信息，用于审校译文
+  const systemPrompt = `你是一位专业的${target_language}编辑和校对专家，精通${plan.specializedKnowledge.join('、')}领域。请审校以下${target_language}译文，确保其质量达到专业出版标准。
 
-  const data = await response.json() as ReviewTranslationResponse;
-  
-  if (!data.final_translation) {
-    throw new Error('审校译文返回无效响应');
+## 翻译规划
+- 文本类型: ${plan.contentType}
+- 风格要求: ${plan.style}
+- 专业领域: ${plan.specializedKnowledge.join('、')}
+
+## 关键术语表
+${keyTermsList}
+
+请详细审校以下方面:
+1. 术语一致性和准确性
+2. 语法和表达通顺性
+3. 风格与目标读者的匹配度
+4. 专业性和准确性
+
+进行必要的修改，然后输出最终的译文版本。在输出最终译文之前，使用===FINAL_TRANSLATION===标记。`;
+
+  try {
+    // 使用OpenAI兼容API进行审校
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: translation }
+        ],
+        temperature: 0.3,
+        max_tokens: Math.max(1024, translation.length * 2),
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`审校译文失败: ${response.status} ${response.statusText} ${errorText}`);
+    }
+
+    const data = await response.json() as {
+      choices: [{
+        message: {
+          content: string;
+        }
+      }]
+    };
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message.content) {
+      throw new Error('翻译API返回无效响应');
+    }
+    
+    const reviewResult = data.choices[0].message.content.trim();
+    
+    // 如果返回包含分隔标记，提取最终翻译部分
+    const parts = reviewResult.split("===FINAL_TRANSLATION===");
+    return parts.length > 1 ? parts[1].trim() : reviewResult;
+  } catch (error) {
+    console.error('审校译文失败:', error);
+    // 如果审校失败，返回原译文
+    return translation;
   }
-  
-  return data.final_translation;
+}
+
+/**
+ * 清理可能包含Markdown格式的JSON字符串
+ * @param jsonString 可能包含Markdown格式的JSON字符串
+ * @returns 清理后的JSON字符串
+ */
+function cleanJsonString(jsonString: string): string {
+  // 移除可能的Markdown代码块标记
+  let cleaned = jsonString.trim();
+
+  // 移除开头的```json、```、或其他代码块标记
+  cleaned = cleaned.replace(/^```(\w*\n|\n)?/, '');
+
+  // 移除结尾的```
+  cleaned = cleaned.replace(/```$/, '');
+
+  // 移除可能的注释
+  cleaned = cleaned.replace(/\/\/.*/g, '');
+
+  return cleaned.trim();
 }
 
 // 添加支持的语言列表资源
