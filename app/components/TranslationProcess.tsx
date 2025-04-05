@@ -244,9 +244,8 @@ export default function TranslationProcess({
                 keyTerms: parsedPlan.keyTerms || {}
               });
             } else {
-              // 如果无法解析为JSON，显示原始文本的一部分
-              console.log("部分结果无法解析为JSON，继续接收数据...");
-              // 可以在这里添加一些用户友好的提示
+              // 如果无法解析为JSON，这是流式传输中的正常现象，继续接收数据
+              // 在这里不需要做任何处理
             }
           }
         );
