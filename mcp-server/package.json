@@ -1,0 +1,50 @@
+{
+  "name": "airylark-mcp-server",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "description": "AiryLark的ModelContextProtocol(MCP)服务器，提供高精度翻译API",
+  "license": "SEE LICENSE IN ../LICENSE",
+  "author": "AiryLark Team",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wizd/airylark.git",
+    "directory": "mcp-server"
+  },
+  "keywords": [
+    "mcp",
+    "translation",
+    "openai",
+    "api",
+    "airylark"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "node --loader ts-node/esm src/index.ts",
+    "lint": "eslint src/**/*.ts",
+    "test": "jest",
+    "clean": "rimraf dist",
+    "prebuild": "npm run clean"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.8.0",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "node-fetch": "^3.3.2",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.1",
+    "@types/node": "^20",
+    "eslint": "^9",
+    "jest": "^29.7.0",
+    "rimraf": "^5.0.5",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "type": "module"
+}
