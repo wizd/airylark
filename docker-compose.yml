@@ -1,14 +1,13 @@
-version: "3"
-
 services:
   airylark:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "${PORT}:${PORT}"
     environment:
       - NODE_ENV=production
+      - PORT=${PORT}
       - TRANSLATION_API_KEY=${TRANSLATION_API_KEY}
       - TRANSLATION_MODEL=${TRANSLATION_MODEL}
       - TRANSLATION_BASE_URL=${TRANSLATION_BASE_URL}
@@ -16,3 +15,19 @@ services:
     # 如果需要持久化存储，可以添加volumes配置
     # volumes:
     #   - ./data:/app/data
+
+  mcp-server:
+    build:
+      context: ./mcp-server
+      dockerfile: Dockerfile
+    ports:
+      - "${MCP_PORT}:${MCP_PORT}"
+    environment:
+      - NODE_ENV=production
+      - PORT=${MCP_PORT}
+      - TRANSLATION_API_KEY=${TRANSLATION_API_KEY}
+      - TRANSLATION_MODEL=${TRANSLATION_MODEL}
+      - TRANSLATION_BASE_URL=${TRANSLATION_BASE_URL}
+    restart: always
+    depends_on:
+      - airylark
