@@ -35,7 +35,7 @@ export function tryParseJson<T>(jsonString: string): T | null {
     try {
         const cleaned = cleanJsonString(jsonString);
         return JSON.parse(cleaned) as T;
-    } catch (error) {
+    } catch {
         // 在流式传输过程中，收到部分JSON数据时解析失败是正常现象，不记录错误
         return null;
     }
