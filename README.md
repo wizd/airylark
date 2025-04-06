@@ -85,7 +85,7 @@ pnpm dev
 bun dev
 ```
 
-在浏览器中打开 [http://localhost:3000](http://localhost:3000) 查看结果。
+在浏览器中打开 [http://localhost:3030](http://localhost:3030) 查看结果。
 
 ## 部署指南
 
@@ -94,6 +94,8 @@ bun dev
 在部署前，请确保配置以下环境变量：
 
 ```
+PORT=3030
+MCP_PORT=3031
 TRANSLATION_API_KEY=your_api_key
 TRANSLATION_MODEL=your_model
 TRANSLATION_BASE_URL=your_base_url
@@ -123,6 +125,7 @@ npm start
 
 ```bash
 docker pull docker.io/wizdy/airylark:latest
+docker pull docker.io/wizdy/airylark-mcp-server:latest
 ```
 
 > **镜像标签说明**：
@@ -141,17 +144,22 @@ TRANSLATION_BASE_URL=your_base_url
 3. 运行容器：
 
 ```bash
-docker run -p 3000:3000 --env-file .env -d docker.io/wizdy/airylark:latest
+# 运行主应用
+docker run -p 3030:3030 --env-file .env -d docker.io/wizdy/airylark:latest
+
+# 运行MCP服务器
+docker run -p 3031:3031 --env-file .env -d docker.io/wizdy/airylark-mcp-server:latest
 ```
 
 4. 访问应用：
 
-在浏览器中打开 http://localhost:3000 即可使用AiryLark。
+在浏览器中打开 http://localhost:3030 即可使用AiryLark。
+MCP服务器运行在 http://localhost:3031。
 
 一键启动（适用于测试，无需配置环境变量文件）：
 
 ```bash
-docker run -p 3000:3000 -e TRANSLATION_API_KEY=your_api_key -e TRANSLATION_MODEL=your_model -e TRANSLATION_BASE_URL=your_base_url -d docker.io/wizdy/airylark:latest
+docker run -p 3030:3030 -e PORT=3030 -e TRANSLATION_API_KEY=your_api_key -e TRANSLATION_MODEL=your_model -e TRANSLATION_BASE_URL=your_base_url -d docker.io/wizdy/airylark:latest
 ```
 
 常见问题：
@@ -163,13 +171,21 @@ docker run -p 3000:3000 -e TRANSLATION_API_KEY=your_api_key -e TRANSLATION_MODEL
 1. 构建 Docker 镜像：
 
 ```bash
+# 构建主应用
 docker build -t airylark .
+
+# 构建MCP服务器
+docker build -t airylark-mcp-server ./mcp-server
 ```
 
 2. 运行容器：
 
 ```bash
-docker run -p 3000:3000 --env-file .env.local -d airylark
+# 运行主应用
+docker run -p 3030:3030 --env-file .env.local -d airylark
+
+# 运行MCP服务器
+docker run -p 3031:3031 --env-file .env.local -d airylark-mcp-server
 ```
 
 #### 使用 Docker Compose
@@ -182,30 +198,25 @@ TRANSLATION_MODEL=your_model
 TRANSLATION_BASE_URL=your_base_url
 ```
 
-2. 创建 `docker-compose.yml` 文件：
-
-```yaml
-version: '3'
-services:
-  airylark:
-    image: docker.io/wizdy/airylark:latest
-    ports:
-      - "3000:3000"
-    env_file:
-      - .env
-    restart: unless-stopped
-```
-
-3. 启动服务：
+2. 使用项目中包含的 `docker-compose.yml` 文件启动所有服务：
 
 ```bash
 docker-compose up -d
 ```
 
-4. 停止服务：
+这将同时启动主应用和MCP服务器。
+
+3. 如需单独管理服务：
 
 ```bash
-docker-compose down
+# 仅启动主应用
+docker-compose up -d airylark
+
+# 仅启动MCP服务器
+docker-compose up -d mcp-server
+
+# 查看日志
+docker-compose logs -f
 ```
 
 ### 方法三：部署到 Vercel

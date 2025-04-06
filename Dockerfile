@@ -36,11 +36,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # 设置环境变量
-ENV PORT=3000
+ENV PORT=3030
 ENV HOSTNAME="0.0.0.0"
 
 # 暴露端口
-EXPOSE 3000
+EXPOSE ${PORT}
 
 # 启动应用
 CMD ["node", "server.js"] 
