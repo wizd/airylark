@@ -211,35 +211,32 @@ function generateOverallComments(segmentFeedbacks: SegmentFeedback[], score: num
         });
     });
 
-    // 根据分数和问题类型生成评论
+    // 根据分数生成评论，使用更通用的评分反馈
     if (score < 70) {
-        comments.push("翻译质量需要显著改进，存在多处需要修正的问题。");
+        comments.push("翻译质量需要改进，存在需要修正的问题。");
     } else if (score < 80) {
-        comments.push("翻译基本可用，但有一些需要改进的地方。");
+        comments.push("翻译整体可用，有一些需要改进的地方。");
     } else if (score < 90) {
-        comments.push("翻译质量良好，有少量可以优化的地方。");
+        comments.push("翻译质量良好，有少量可优化之处。");
     } else {
-        comments.push("翻译质量优秀，基本达到专业水准。");
+        comments.push("翻译质量优秀，基本符合专业标准。");
     }
 
-    // 添加具体问题的评论
-    if (issueTypes.get("术语不准确")) {
-        comments.push("专业术语的翻译需要进一步规范，建议参考行业标准术语表。");
-    }
-    if (issueTypes.get("省略重要信息")) {
-        comments.push("存在信息缺失的情况，请确保译文完整传达原文的所有重要信息。");
-    }
-    if (issueTypes.get("过度直译")) {
-        comments.push("部分译文过于直译，建议适当调整以符合中文表达习惯。");
-    }
-    if (issueTypes.get("重复内容")) {
-        comments.push("注意避免不必要的重复内容。");
+    // 基于问题类型统计生成通用评论
+    const problemTypes = Array.from(issueTypes.keys());
+    if (problemTypes.length > 0) {
+        const typeCount = problemTypes.length;
+        if (typeCount <= 2) {
+            comments.push(`主要存在 ${problemTypes.join('、')} 等问题，可针对性改进。`);
+        } else {
+            comments.push(`存在多种问题类型，包括 ${problemTypes.slice(0, 3).join('、')} 等，建议全面检查。`);
+        }
     }
 
     // 如果评分低但没有具体问题，添加默认评论
     if (score < 80 && comments.length < 2) {
-        comments.push("建议仔细检查译文的准确性和流畅度。");
-        comments.push("可以考虑调整某些表达方式，使其更符合目标读者的阅读习惯。");
+        comments.push("建议检查译文的准确性和流畅度。");
+        comments.push("可考虑调整表达方式，使译文更符合目标读者的阅读习惯。");
     }
 
     return comments;
@@ -340,53 +337,24 @@ function calculateMinimumEditOperations(source: string, target: string): {
 function analyzeTermIssues(originalContent: string, translatedContent: string): Issue[] {
     const issues: Issue[] = [];
 
-    // 扩展术语列表
-    const terms = [
-        {
-            en: "quality checks",
-            zh: "质量检查",
-            suggestion: "质量检查",
-            reason: "这是质量管理领域的标准术语。"
-        },
-        {
-            en: "quality assurance",
-            zh: "质量保证",
-            suggestion: "质量保证",
-            reason: "这是质量管理体系中的标准术语。"
-        },
-        {
-            en: "internal standards",
-            zh: "内部标准",
-            suggestion: "内部标准",
-            reason: "这是组织管理中的标准用语。"
-        },
-        {
-            en: "comprehensiveness",
-            zh: "完整性",
-            suggestion: "完整性",
-            reason: "这是评估标准中的关键术语。"
-        },
-        {
-            en: "accuracy",
-            zh: "准确性",
-            suggestion: "准确性",
-            reason: "这是质量评估中的基本术语。"
-        },
-        {
-            en: "strategic alignment",
-            zh: "战略一致性",
-            suggestion: "战略一致性",
-            reason: "这是战略管理中的专业术语。"
-        }
-    ];
+    // 术语列表应该从配置或数据库中加载，这里仅作示例
+    const terms: {
+        en: string;
+        zh: string;
+        suggestion: string;
+        reason: string;
+    }[] = [];
+
+    // 未来可以通过API或配置文件导入术语列表
+    // 示例：const terms = await fetchTermsFromDatabase();
 
     for (const term of terms) {
         if (originalContent.includes(term.en)) {
-            // 使用正则表达式找出所有可能的翻译
-            const pattern = new RegExp(`[质量的]{0,4}[保证检查]{2,4}|[内部的]{0,4}[标准规范]{2,4}|[完整准确战略]{2,6}[性一致对齐]{1,4}`, 'g');
+            // 使用正则表达式或其他方法找出可能的翻译
+            const translationPattern = new RegExp(term.zh.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
             let match;
             
-            while ((match = pattern.exec(translatedContent)) !== null) {
+            while ((match = translationPattern.exec(translatedContent)) !== null) {
                 const actualTranslation = match[0];
                 if (actualTranslation !== term.zh) {
                     // 计算实际翻译和建议翻译之间的字符级别差异
@@ -422,25 +390,6 @@ function generateSegmentFeedbacks(originalSegments: string[], translatedSegments
         const translatedContent = translatedSegments[segmentIndex]?.replace(/^\[\d+\]\s*/, "") || "";
 
         if (!originalContent || !translatedContent) continue;
-
-        // 检查是否是特殊案例
-        const specialCaseSuggestion = checkSpecialCases(originalContent, translatedContent);
-        if (specialCaseSuggestion) {
-            // 找到原文在译文中的位置
-            const start = translatedContent.indexOf(specialCaseSuggestion.translatedText);
-            if (start !== -1) {
-                feedbacks.push({
-                    segmentIndex,
-                    issues: [{
-                        ...specialCaseSuggestion,
-                        start,
-                        end: start + specialCaseSuggestion.translatedText.length,
-                        reason: generateReason(specialCaseSuggestion.type, specialCaseSuggestion.translatedText, specialCaseSuggestion.suggestion)
-                    }]
-                });
-            }
-            continue;
-        }
 
         // 存储已检测过的文本范围，避免重复检测
         const checkedRanges: { start: number; end: number }[] = [];
@@ -559,7 +508,8 @@ function checkNumberFormat(text: string, basePosition: number): {
         content?: string;
     }>;
 } | null {
-    const numberPattern = /\d+\s+\d+(?:年|月|日)?/g;
+    // 使用通用的数字格式检查模式，检测数字之间有空格的情况
+    const numberPattern = /\d+\s+\d+/g;
     let match;
 
     while ((match = numberPattern.exec(text)) !== null) {
@@ -567,16 +517,7 @@ function checkNumberFormat(text: string, basePosition: number): {
         const start = basePosition + match.index;
         const end = start + matchedText.length;
 
-        // 处理年份等特殊情况
-        if (matchedText.includes('年') || matchedText.includes('月') || matchedText.includes('日')) {
-            const parts = matchedText.split(/\s+/);
-            if (parts.length === 2) {
-                const suggestion = parts.join('');
-                return { start, end, suggestion };
-            }
-        }
-
-        // 处理普通数字
+        // 处理普通数字，移除中间的空格
         const suggestion = matchedText.replace(/\s+/g, '');
         return { start, end, suggestion };
     }
@@ -586,7 +527,8 @@ function checkNumberFormat(text: string, basePosition: number): {
 
 // 改进的重复内容检查
 function checkDuplicateContent(segment: string, fullText: string, basePosition: number): { start: number; end: number } | null {
-    if (segment.length < 5) return null;  // 忽略过短的片段
+    // 忽略过短的片段，避免误判
+    if (segment.length < 5) return null;
 
     const segmentEnd = basePosition + segment.length;
 
@@ -600,7 +542,8 @@ function checkDuplicateContent(segment: string, fullText: string, basePosition: 
         const duplicateEnd = duplicateStart + segment.length;
 
         // 检查重复是否有意义（避免误判正常的重复，如标点符号）
-        if (segment.length > 10 || /[\u4e00-\u9fa5]/.test(segment)) {
+        // 使用更通用的检查逻辑：内容足够长或包含实质性内容
+        if (segment.length > 10 || /\w+/.test(segment)) {
             return {
                 start: duplicateStart,
                 end: duplicateEnd
@@ -611,133 +554,71 @@ function checkDuplicateContent(segment: string, fullText: string, basePosition: 
     return null;
 }
 
-// 检查特殊案例
+// 检查特殊案例 - 移除特殊案例检查，改为通用检查
 function checkSpecialCases(originalText: string, translatedText: string): Issue | null {
-    // 检查 previous APs 的翻译
-    if (originalText.includes("previous APs") &&
-        translatedText.includes("之前的AP")) {
-        return {
-            type: "流畅性",
-            description: "译文中的表达不够自然",
-            originalText: "之前的AP",
-            translatedText: "之前的AP",
-            suggestion: "之前的行动计划",
-            reason: "AP 应该翻译为'行动计划'，这样更容易理解。",
-            start: 0,
-            end: 0
-        };
-    }
-
-    // 特殊案例1: EU Strategy for Cooperation in the Indo-Pacific
-    if (originalText.includes("EU Strategy for Cooperation in the Indo-Pacific") &&
-        translatedText.includes("欧盟印太合作战略")) {
-        return {
-            type: "术语不准确",
-            description: "战略相关术语翻译不够准确",
-            originalText: "EU Strategy for Cooperation in the Indo-Pacific",
-            translatedText: "欧盟印太合作战略",
-            suggestion: "欧盟印太合作战略（EU Strategy for Cooperation in the Indo-Pacific）",
-            reason: "保留原文术语有助于读者理解和查找相关信息。",
-            start: 0,
-            end: 0
-        };
-    }
-
-    // 检查是否缺少了"increase the EU's security profile"的完整翻译
-    if (originalText.includes("increase the EU's security profile") &&
-        translatedText.includes("提高欧盟在该区域的安全形象")) {
-        return {
-            type: "术语不准确",
-            description: "安全相关术语翻译不够准确",
-            originalText: "increase the EU's security profile in the region",
-            translatedText: "提高欧盟在该区域的安全形象",
-            suggestion: "提升欧盟在该地区的安全存在感和影响力",
-            reason: "'security profile'不仅指形象，还包含存在感和影响力的含义。",
-            start: 0,
-            end: 0
-        };
-    }
-
-    // 检查是否缺少了"accelerate clean energy transitions"的完整翻译
-    if (originalText.includes("accelerate clean energy transitions") &&
-        translatedText.includes("加速清洁能源转换")) {
-        return {
-            type: "过度直译",
-            description: "直译导致表达不自然",
-            originalText: "accelerate clean energy transitions",
-            translatedText: "加速清洁能源转换",
-            suggestion: "加快清洁能源转型",
-            reason: "'清洁能源转型'是能源领域更为常用的表达方式。",
-            start: 0,
-            end: 0
-        };
-    }
-
-    // 用户提到的特殊案例
-    if (originalText.includes("In advancing the implementation of the EU Strategy for Cooperation in the Indo-Pacific") &&
-        translatedText.includes("德国、法国和荷兰在推动执行《欧盟印太合作战略")) {
-        return {
-            type: "省略重要信息",
-            description: "关键信息未被翻译",
-            originalText: "In advancing the implementation of the EU Strategy for Cooperation in the Indo-Pacific (2021), Germany, France, and the Netherlands will launch joint initiatives within the EU in order to increase the EU's security profile in the region, strengthen and diversify its trade relations, accelerate clean energy transitions and intensify cooperation with countries in the region, including the Pacific Islands",
-            translatedText: "德国、法国和荷兰在推动执行《欧盟印太合作战略（2021）》 （EU Strategy for Cooperation in the Indo-Pacific）时，将在欧盟内发起联合倡议，以提高欧盟在该区域的安全形象，加强其贸易关系并使其多样化，加速清洁能源转换，并加强与该区域各国，包括太平洋岛屿的合作",
-            suggestion: "德国、法国和荷兰在推动落实《欧盟印太合作战略（2021）》时，将在欧盟内启动联合行动计划，以提升欧盟在该地区的安全存在感和影响力，加强并多元化其贸易关系，加快清洁能源转型，并深化与该地区国家（包括太平洋岛国）的合作。",
-            reason: "建议使用更准确的术语并调整表达方式，使译文更符合正式外交文件的表达习惯。",
-            start: 0,
-            end: 0
-        };
-    }
-
+    // 此函数不再检查特定内容，而是返回null
+    // 未来可以实现通用的检查逻辑
     return null;
 }
 
 // 生成问题描述
 function generateIssueDescription(issueType: string): string {
+    // 使用通用的问题描述，未来可以从配置或数据库加载
     const descriptions: Record<string, string[]> = {
         "术语不准确": [
-            "该术语在目标领域有特定的翻译",
-            "专业术语翻译不准确，影响理解",
-            "术语选择不符合行业标准"
+            "术语翻译不符合领域规范",
+            "专业术语的翻译不准确",
+            "术语选择需要优化"
         ],
         "语法错误": [
-            "句子结构不符合中文语法习惯",
-            "主谓搭配不当",
-            "时态使用不正确"
+            "句子结构需要调整",
+            "语法使用不当",
+            "句法需要改进"
         ],
         "过度直译": [
-            "直译导致表达不自然",
-            "过于忠实原文结构，影响流畅度",
-            "需要意译以符合中文表达习惯"
+            "翻译过于字面",
+            "需要更符合目标语言表达习惯",
+            "表达方式需要本地化"
         ],
         "意思不明确": [
-            "译文含义模糊",
-            "无法准确理解译文表达的意思",
-            "原文的关键信息在译文中变得不清晰"
+            "译文表达不够清晰",
+            "意思传达不够准确",
+            "语义模糊"
         ],
         "省略重要信息": [
-            "原文中的重要细节在译文中被省略",
-            "关键信息未被翻译",
+            "译文缺少原文的重要内容",
+            "信息有所遗漏",
             "内容不完整"
         ],
         "添加了不必要的内容": [
             "译文添加了原文中不存在的内容",
-            "不必要的解释影响了准确性",
-            "过度阐述原文意思"
+            "内容有额外添加",
+            "翻译过于扩展"
         ],
         "标点符号使用不当": [
-            "标点符号使用不符合中文规范",
-            "标点符号过多或过少",
-            "标点符号选择不当"
+            "标点符号使用需要调整",
+            "标点符号使用不规范",
+            "标点使用问题"
         ],
         "格式问题": [
-            "译文格式与原文不一致",
-            "段落结构被改变",
-            "列表或编号格式不一致"
+            "格式需要保持一致",
+            "格式与原文不匹配",
+            "布局结构需要调整"
         ],
         "专业术语不一致": [
-            "同一术语在不同地方有不同翻译",
-            "术语使用不一致影响理解",
-            "需要统一术语翻译"
+            "术语使用不一致",
+            "相同概念有不同表述",
+            "需要统一术语"
+        ],
+        "数字格式": [
+            "数字格式需要规范化",
+            "数字表示方式不规范",
+            "数字格式不符合标准"
+        ],
+        "重复内容": [
+            "存在不必要的重复",
+            "内容重复影响阅读",
+            "冗余内容"
         ]
     };
 
@@ -747,18 +628,50 @@ function generateIssueDescription(issueType: string): string {
 
 // 生成修改理由
 function generateReason(type: string, originalText: string, suggestion: string): string {
-    switch (type) {
-        case "术语不准确":
-            return `"${originalText}"是不准确的术语翻译。"${suggestion}"是该领域更专业和标准的表达方式。`;
-        case "语法错误":
-            return `当前译文"${originalText}"的语法结构不符合中文表达习惯。建议修改为"${suggestion}"，使句子更通顺。`;
-        case "过度直译":
-            return `"${originalText}"过于直译，显得生硬。"${suggestion}"更符合中文的自然表达方式。`;
-        case "省略重要信息":
-            return `当前译文"${originalText}"省略了原文的重要信息。"${suggestion}"完整保留了原文的关键内容。`;
-        case "添加了不必要的内容":
-            return `"${originalText}"添加了原文中不存在的内容。"${suggestion}"更忠实原文，避免了不必要的扩展。`;
-        default:
-            return `建议将"${originalText}"修改为"${suggestion}"，以提高翻译质量。`;
-    }
+    // 使用更通用的理由模板，不包含特定翻译内容
+    const templates: Record<string, string[]> = {
+        "术语不准确": [
+            `当前译文不符合专业领域术语规范，建议修改为更准确的表达`,
+            `专业术语翻译需要遵循行业标准`,
+            `该术语有更专业的翻译方式`
+        ],
+        "语法错误": [
+            `当前表达方式在语法上需要调整`,
+            `语法结构需要优化以提高可读性`,
+            `调整语法结构使句子更加通顺`
+        ],
+        "过度直译": [
+            `需要采用更符合目标语言习惯的表达方式`,
+            `字面翻译影响了流畅度，需要意译`,
+            `调整表达方式使其更加自然`
+        ],
+        "省略重要信息": [
+            `译文缺少原文的关键信息，需要补充`,
+            `保留原文所有重要内容是必要的`,
+            `完整传达原文信息很重要`
+        ],
+        "添加了不必要的内容": [
+            `译文添加了原文中不存在的内容，应当删除`,
+            `应当避免添加原文中没有的解释`,
+            `忠实原文是翻译的基本原则`
+        ],
+        "数字格式": [
+            `数字格式应当符合标准写法`,
+            `数字的表达方式需要规范化`,
+            `数字格式调整可提高阅读体验`
+        ],
+        "重复内容": [
+            `重复内容会影响阅读流畅度`,
+            `应当避免不必要的内容重复`,
+            `删除冗余内容可提高文本质量`
+        ]
+    };
+
+    // 获取该类型的模板，如果没有特定类型的模板，使用默认模板
+    const typeTemplates = templates[type] || [`建议将文本修改为更准确的表达`];
+    
+    // 随机选择一个模板
+    const template = typeTemplates[Math.floor(Math.random() * typeTemplates.length)];
+    
+    return template;
 } 
