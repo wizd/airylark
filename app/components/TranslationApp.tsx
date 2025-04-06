@@ -247,16 +247,6 @@ export default function TranslationApp() {
               value={manualContent || ""}
               onChange={(e) => setManualContent(e.target.value)}
             ></textarea>
-            {manualContent && (
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={startTranslation}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  开始翻译
-                </button>
-              </div>
-            )}
           </div>
         )}
 

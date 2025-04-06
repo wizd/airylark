@@ -67,7 +67,7 @@ export default function TranslationThinking({
     if (isLoading) {
       return (
         <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-300">
-          <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-4 h-4 border-2 border-blue-500 dark:border-blue-400 border-t-transparent rounded-full animate-spin"></div>
           <span>思考中...</span>
         </div>
       );
@@ -82,7 +82,7 @@ export default function TranslationThinking({
         return renderReviewingThinking(data as ReviewingData);
       case "completed":
         return (
-          <div className="text-green-600 dark:text-green-400">处理完成</div>
+          <div className="text-green-500 dark:text-green-400">处理完成</div>
         );
       default:
         return null;
@@ -110,7 +110,7 @@ export default function TranslationThinking({
             </h4>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               检测到文本类型为:{" "}
-              <span className="text-blue-600 dark:text-blue-400">
+              <span className="text-blue-500 dark:text-blue-400">
                 {data.contentType}
               </span>
             </p>
@@ -124,7 +124,7 @@ export default function TranslationThinking({
             </h4>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               文本风格:{" "}
-              <span className="text-blue-600 dark:text-blue-400">
+              <span className="text-blue-500 dark:text-blue-400">
                 {data.style}
               </span>
             </p>
@@ -141,7 +141,7 @@ export default function TranslationThinking({
                 (knowledge: string, index: number) => (
                   <span
                     key={index}
-                    className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs rounded-full"
+                    className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs rounded-full"
                   >
                     {knowledge}
                   </span>
@@ -164,7 +164,7 @@ export default function TranslationThinking({
                       {en}
                     </span>
                     <span className="text-gray-400">→</span>
-                    <span className="text-blue-600 dark:text-blue-400">
+                    <span className="text-blue-500 dark:text-blue-400">
                       {zh}
                     </span>
                   </div>
@@ -198,7 +198,7 @@ export default function TranslationThinking({
             <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
               当前段落
             </h4>
-            <p className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-2 rounded">
+            <p className="text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 p-2 rounded">
               {data.currentSegment}
             </p>
           </div>
@@ -209,7 +209,7 @@ export default function TranslationThinking({
             <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
               翻译结果
             </h4>
-            <p className="text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 p-2 rounded">
+            <p className="text-sm text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 p-2 rounded">
               {data.currentTranslation}
             </p>
           </div>
@@ -272,7 +272,7 @@ export default function TranslationThinking({
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden mb-6">
       <div
-        className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750"
+        className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center space-x-2">
@@ -299,7 +299,7 @@ export default function TranslationThinking({
       </div>
 
       {isExpanded && (
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-850">
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
           {getThinkingContent()}
         </div>
       )}
