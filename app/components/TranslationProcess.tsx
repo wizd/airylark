@@ -17,6 +17,10 @@ import {
 import TranslationThinking from "./TranslationThinking";
 import ExpertEditor from "./ExpertEditor"; // 导入外部的 ExpertEditor 组件
 
+// 获取环境变量配置
+// 注意：在Next.js中，浏览器可访问的环境变量需要以NEXT_PUBLIC_开头
+const useStreaming = process.env.NEXT_PUBLIC_USE_STREAMING === 'true';
+
 // 专家编辑器组件接口（保留以便类型检查）
 interface ExpertEditorProps {
   originalSegments: string[];
@@ -226,27 +230,31 @@ export default function TranslationProcess({
           keyTerms: {}
         });
 
-        // 使用流式API创建翻译规划
-        const planResult = await apiCreateTranslationPlanStream(
-          sourceText,
-          (partialResult) => {
-            // 尝试解析部分结果，使用增强的JSON解析
-            const parsedPlan = tryParseJson<TranslationPlan>(partialResult);
-            if (parsedPlan) {
-              setPlanningThinkingData({
-                contentType: parsedPlan.contentType || "分析中...",
-                style: parsedPlan.style || "分析中...",
-                specializedKnowledge: parsedPlan.specializedKnowledge || [
-                  "分析中..."
-                ],
-                keyTerms: parsedPlan.keyTerms || {}
-              });
-            } else {
-              // 如果无法解析为JSON，这是流式传输中的正常现象，继续接收数据
-              // 在这里不需要做任何处理
+        let planResult: string;
+        
+        if (useStreaming) {
+          // 使用流式API创建翻译规划
+          planResult = await apiCreateTranslationPlanStream(
+            sourceText,
+            (partialResult) => {
+              // 尝试解析部分结果，使用增强的JSON解析
+              const parsedPlan = tryParseJson<TranslationPlan>(partialResult);
+              if (parsedPlan) {
+                setPlanningThinkingData({
+                  contentType: parsedPlan.contentType || "分析中...",
+                  style: parsedPlan.style || "分析中...",
+                  specializedKnowledge: parsedPlan.specializedKnowledge || [
+                    "分析中..."
+                  ],
+                  keyTerms: parsedPlan.keyTerms || {}
+                });
+              }
             }
-          }
-        );
+          );
+        } else {
+          // 使用非流式API创建翻译规划
+          planResult = await apiCreateTranslationPlan(sourceText);
+        }
 
         // 使用增强的JSON解析处理最终结果
         const parsedPlan = tryParseJson<TranslationPlan>(planResult);
@@ -319,18 +327,28 @@ export default function TranslationProcess({
           });
 
           try {
-            // 使用流式API翻译段落
-            const translationResult = await apiTranslateSegmentStream(
-              originalSegments[i],
-              translationPlan,
-              (partialResult) => {
-                // 更新思考数据，显示部分翻译结果
-                setTranslatingThinkingData((prevData) => ({
-                  ...prevData,
-                  currentTranslation: partialResult
-                }));
-              }
-            );
+            let translationResult: string;
+            
+            if (useStreaming) {
+              // 使用流式API翻译段落
+              translationResult = await apiTranslateSegmentStream(
+                originalSegments[i],
+                translationPlan,
+                (partialResult) => {
+                  // 更新思考数据，显示部分翻译结果
+                  setTranslatingThinkingData((prevData) => ({
+                    ...prevData,
+                    currentTranslation: partialResult
+                  }));
+                }
+              );
+            } else {
+              // 使用非流式API翻译段落
+              translationResult = await apiTranslateSegment(
+                originalSegments[i],
+                translationPlan
+              );
+            }
 
             // 提取思考过程和翻译结果
             const resultParts = translationResult.split("===TRANSLATION===");
@@ -393,28 +411,38 @@ export default function TranslationProcess({
           improvements: []
         });
 
-        // 使用流式API审校译文
-        const reviewResult = await apiReviewTranslationStream(
-          combinedTranslation,
-          translationPlan,
-          (partialResult) => {
-            // 更新思考数据，显示部分审校结果
-            const resultParts = partialResult.split("===FINAL_TRANSLATION===");
-            if (resultParts.length === 2) {
-              setReviewingThinkingData({
-                reviewNotes: [resultParts[0].trim()],
-                improvements: []
-              });
-              setFinalTranslation(resultParts[1].trim());
-            } else {
-              // 如果还没有分隔符，显示全部内容为审校笔记
-              setReviewingThinkingData({
-                reviewNotes: [partialResult.trim()],
-                improvements: []
-              });
+        let reviewResult: string;
+        
+        if (useStreaming) {
+          // 使用流式API审校译文
+          reviewResult = await apiReviewTranslationStream(
+            combinedTranslation,
+            translationPlan,
+            (partialResult) => {
+              // 更新思考数据，显示部分审校结果
+              const resultParts = partialResult.split("===FINAL_TRANSLATION===");
+              if (resultParts.length === 2) {
+                setReviewingThinkingData({
+                  reviewNotes: [resultParts[0].trim()],
+                  improvements: []
+                });
+                setFinalTranslation(resultParts[1].trim());
+              } else {
+                // 如果还没有分隔符，显示全部内容为审校笔记
+                setReviewingThinkingData({
+                  reviewNotes: [partialResult.trim()],
+                  improvements: []
+                });
+              }
             }
-          }
-        );
+          );
+        } else {
+          // 使用非流式API审校译文
+          reviewResult = await apiReviewTranslation(
+            combinedTranslation,
+            translationPlan
+          );
+        }
 
         // 提取思考过程和最终译文
         const resultParts = reviewResult.split("===FINAL_TRANSLATION===");

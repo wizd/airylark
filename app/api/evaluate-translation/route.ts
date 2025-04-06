@@ -554,13 +554,6 @@ function checkDuplicateContent(segment: string, fullText: string, basePosition: 
     return null;
 }
 
-// 检查特殊案例 - 移除特殊案例检查，改为通用检查
-function checkSpecialCases(originalText: string, translatedText: string): Issue | null {
-    // 此函数不再检查特定内容，而是返回null
-    // 未来可以实现通用的检查逻辑
-    return null;
-}
-
 // 生成问题描述
 function generateIssueDescription(issueType: string): string {
     // 使用通用的问题描述，未来可以从配置或数据库加载
@@ -625,53 +618,3 @@ function generateIssueDescription(issueType: string): string {
     const options = descriptions[issueType] || ["需要改进翻译质量"];
     return options[Math.floor(Math.random() * options.length)];
 }
-
-// 生成修改理由
-function generateReason(type: string, originalText: string, suggestion: string): string {
-    // 使用更通用的理由模板，不包含特定翻译内容
-    const templates: Record<string, string[]> = {
-        "术语不准确": [
-            `当前译文不符合专业领域术语规范，建议修改为更准确的表达`,
-            `专业术语翻译需要遵循行业标准`,
-            `该术语有更专业的翻译方式`
-        ],
-        "语法错误": [
-            `当前表达方式在语法上需要调整`,
-            `语法结构需要优化以提高可读性`,
-            `调整语法结构使句子更加通顺`
-        ],
-        "过度直译": [
-            `需要采用更符合目标语言习惯的表达方式`,
-            `字面翻译影响了流畅度，需要意译`,
-            `调整表达方式使其更加自然`
-        ],
-        "省略重要信息": [
-            `译文缺少原文的关键信息，需要补充`,
-            `保留原文所有重要内容是必要的`,
-            `完整传达原文信息很重要`
-        ],
-        "添加了不必要的内容": [
-            `译文添加了原文中不存在的内容，应当删除`,
-            `应当避免添加原文中没有的解释`,
-            `忠实原文是翻译的基本原则`
-        ],
-        "数字格式": [
-            `数字格式应当符合标准写法`,
-            `数字的表达方式需要规范化`,
-            `数字格式调整可提高阅读体验`
-        ],
-        "重复内容": [
-            `重复内容会影响阅读流畅度`,
-            `应当避免不必要的内容重复`,
-            `删除冗余内容可提高文本质量`
-        ]
-    };
-
-    // 获取该类型的模板，如果没有特定类型的模板，使用默认模板
-    const typeTemplates = templates[type] || [`建议将文本修改为更准确的表达`];
-    
-    // 随机选择一个模板
-    const template = typeTemplates[Math.floor(Math.random() * typeTemplates.length)];
-    
-    return template;
-} 
