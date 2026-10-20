@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { TranslationPlan } from "../services/translationApi";
+import { useWordAlignment } from "./useWordAlignment";
 
 interface ExpertEditorProps {
   originalSegments: string[];
@@ -41,8 +42,7 @@ export default function ExpertEditor({
   const [prevTranslatedSegments, setPrevTranslatedSegments] =
     useState(translatedSegments);
 
-  // 调试输出
-  console.log("当前编辑状态:", editingIndices);
+  const alignment = useWordAlignment(originalSegments, editedSegments, translationPlan.keyTerms);
 
   // 译文段落变化时重置编辑状态
   if (translatedSegments !== prevTranslatedSegments) {
@@ -99,6 +99,8 @@ export default function ExpertEditor({
 
   // 处理段落点击，切换编辑模式
   const handleSegmentClick = (index: number) => {
+    alignment.clearHover();
+    alignment.enterParagraph(null);
     const newEditingIndices = [...editingIndices, index];
     setEditingIndices(newEditingIndices);
 
@@ -113,6 +115,7 @@ export default function ExpertEditor({
 
   // 处理编辑完成
   const handleEditComplete = (index: number) => {
+    alignment.enterParagraph(index);
     const newEditingIndices = editingIndices.filter((i) => i !== index);
     setEditingIndices(newEditingIndices);
   };
@@ -129,11 +132,6 @@ export default function ExpertEditor({
   const extractSegmentNumber = (segment: string) => {
     const match = segment.match(/^\[(\d+)\]/);
     return match ? match[1] : "";
-  };
-
-  // 提取段落内容（去除编号）
-  const extractSegmentContent = (segment: string) => {
-    return segment.replace(/^\[\d+\]\s*/, "");
   };
 
   // 设置文本框引用的回调函数
@@ -175,6 +173,7 @@ export default function ExpertEditor({
         <ul className="list-disc list-inside text-blue-700 dark:text-blue-400 text-sm">
           <li>左侧显示原文，右侧为可编辑的译文</li>
           <li>每个段落保持对应，可以直接在右侧文本框中编辑译文</li>
+          <li>鼠标悬停在原文或译文词语上，蓝色标记当前词语，金色标记另一侧的对应译法；点击译文进入编辑</li>
           <li>编辑完成后点击&quot;保存修改&quot;按钮应用更改</li>
           <li>
             专业术语参考：
@@ -194,10 +193,10 @@ export default function ExpertEditor({
       {/* 段落编辑区 */}
       <div className="space-y-6">
         {originalSegments.map((originalSegment, index) => {
-          const originalContent = extractSegmentContent(originalSegment);
-
           return (
-            <div key={index} className="flex flex-col md:flex-row gap-4">
+            <div key={index} className="flex flex-col md:flex-row gap-4"
+              onMouseEnter={() => { if (!editingIndices.includes(index)) alignment.enterParagraph(index); }}
+              onMouseLeave={() => { alignment.enterParagraph(null); alignment.clearHover(); }}>
               {/* 原文段落 */}
               <div className="flex-1">
                 <div className="flex items-center mb-2">
@@ -210,7 +209,7 @@ export default function ExpertEditor({
                 </div>
                 <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 min-h-[100px]">
                   <p className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                    {originalContent}
+                    {alignment.renderText(index, "source")}
                   </p>
                 </div>
               </div>
@@ -224,6 +223,9 @@ export default function ExpertEditor({
                   <h4 className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                     译文
                   </h4>
+                  <span className="ml-auto text-xs text-gray-500 dark:text-gray-400" role="status">
+                    {alignment.status(index)}
+                  </span>
                 </div>
 
                 {editingIndices.includes(index) ? (
@@ -267,7 +269,7 @@ export default function ExpertEditor({
                     className="group bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-300 dark:border-gray-600 min-h-[100px] cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors relative"
                   >
                     <p className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                      {editedSegments[index] || ""}
+                      {alignment.renderText(index, "target")}
                     </p>
                     <div className="absolute bottom-2 right-2 text-xs text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
                       <svg

@@ -1,5 +1,26 @@
 @import "tailwindcss";
 
+.word-alignment-token {
+  border-radius: 3px;
+  transition: background-color 140ms ease, box-shadow 140ms ease;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.word-alignment-hover {
+  background-color: rgb(59 130 246 / 22%);
+  box-shadow: 0 2px 0 rgb(59 130 246 / 65%);
+}
+
+.word-alignment-match {
+  background-color: rgb(245 158 11 / 28%);
+  box-shadow: 0 2px 0 rgb(245 158 11 / 70%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .word-alignment-token { transition: none; }
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
