@@ -47,6 +47,25 @@ body {
 }
 
 /* 增强 Markdown 样式 */
+.translation-output {
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.translation-output p {
+  white-space: pre-wrap;
+}
+
+/* Paragraph spacing must work without the optional Tailwind typography plugin. */
+.translation-output > * + * {
+  margin-top: 1.25em;
+}
+
+.translation-output li > p + p,
+.translation-output blockquote > p + p {
+  margin-top: 1em;
+}
+
 .prose table {
   width: 100%;
   border-collapse: collapse;

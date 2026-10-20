@@ -45,9 +45,10 @@ interface Delta {
  */
 export async function runTask(
     params: TaskParams,
-    onDelta?: (event: { type: 'thinking' | 'text'; text: string }) => void
+    onDelta?: (event: { type: 'thinking' | 'text'; text: string }) => void,
+    options?: { signal?: AbortSignal; timeout?: number; maxRetries?: number }
 ): Promise<TaskOutput> {
-    const stream = await getClient().chat.completions.create({ model: MODEL, ...params, stream: true });
+    const stream = await getClient().chat.completions.create({ model: MODEL, ...params, stream: true }, options);
 
     let thinking = '';
     let text = '';

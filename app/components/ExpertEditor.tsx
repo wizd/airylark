@@ -42,7 +42,7 @@ export default function ExpertEditor({
   const [prevTranslatedSegments, setPrevTranslatedSegments] =
     useState(translatedSegments);
 
-  const alignment = useWordAlignment(originalSegments, editedSegments, translationPlan.keyTerms);
+  const alignment = useWordAlignment(originalSegments, editedSegments, translationPlan.keyTerms, editingIndices);
 
   // 译文段落变化时重置编辑状态
   if (translatedSegments !== prevTranslatedSegments) {
@@ -174,6 +174,7 @@ export default function ExpertEditor({
           <li>左侧显示原文，右侧为可编辑的译文</li>
           <li>每个段落保持对应，可以直接在右侧文本框中编辑译文</li>
           <li>鼠标悬停在原文或译文词语上，蓝色标记当前词语，金色标记另一侧的对应译法；点击译文进入编辑</li>
+          <li>进入页面后自动按段生成词语对应关系，优先处理鼠标所在段落；同一段生成一次即可双向查看</li>
           <li>编辑完成后点击&quot;保存修改&quot;按钮应用更改</li>
           <li>
             专业术语参考：
@@ -223,9 +224,14 @@ export default function ExpertEditor({
                   <h4 className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                     译文
                   </h4>
-                  <span className="ml-auto text-xs text-gray-500 dark:text-gray-400" role="status">
+                  <span className="ml-auto text-xs text-gray-500 dark:text-gray-400" role="status" title={alignment.error(index)}>
                     {alignment.status(index)}
                   </span>
+                  {alignment.error(index) && (
+                    <button type="button" onClick={() => alignment.retry(index)}
+                      className="ml-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                      title={alignment.error(index)}>重试对齐</button>
+                  )}
                 </div>
 
                 {editingIndices.includes(index) ? (

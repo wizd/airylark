@@ -666,7 +666,7 @@ ${finalTranslation}`;
                 </span>
               )}
             </h3>
-            <div className="prose dark:prose-invert prose-headings:my-4 prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 max-w-none overflow-auto bg-white dark:bg-gray-700 rounded-lg p-6 border border-gray-200 dark:border-gray-600">
+            <div className="translation-output prose dark:prose-invert prose-headings:my-4 prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 max-w-none overflow-auto bg-white dark:bg-gray-700 rounded-lg p-6 border border-gray-200 dark:border-gray-600">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {finalTranslation}
               </ReactMarkdown>

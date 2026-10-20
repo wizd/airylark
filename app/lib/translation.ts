@@ -104,7 +104,7 @@ export function segmentParams(segment: string, plan: TranslationPlan, document?:
 export const ReviewSchema = z.object({
     reviewNotes: z.array(z.string()).describe('审校发现：准确性、流畅性、术语一致性、风格一致性方面的问题'),
     improvements: z.array(z.string()).describe('对译文所做的具体修改'),
-    finalTranslation: z.string().describe('修改后的完整译文，保留段落编号和段落划分'),
+    finalTranslation: z.string().describe('修改后的完整译文，严格保留输入译文的段落划分、段落间空行、段内换行和段落编号，不要合并段落'),
 });
 
 export type Review = z.infer<typeof ReviewSchema>;
@@ -121,7 +121,7 @@ export function reviewParams(translatedText: string, plan: TranslationPlan, sour
             },
             {
                 role: 'user',
-                content: `${source}<translation>\n${translatedText}\n</translation>\n\n请审校上面的译文，给出审校发现、所做修改和最终译文。`,
+                content: `${source}<translation>\n${translatedText}\n</translation>\n\n请审校上面的译文，给出审校发现、所做修改和最终译文。最终译文必须保持输入译文的段落数量和顺序，保留段落间的空行以及段内换行，不得把多个段落合并成一段。`,
             },
         ],
     };
