@@ -1,22 +1,6 @@
 import { NextResponse } from 'next/server';
-
-// 使用环境变量
-const API_KEY = process.env.TRANSLATION_API_KEY || '';
-const API_URL = process.env.TRANSLATION_BASE_URL || '';
-const MODEL = process.env.TRANSLATION_MODEL || 'deepseek-ai/DeepSeek-V3';
-
-interface Message {
-    role: 'system' | 'user' | 'assistant';
-    content: string;
-}
-
-interface ApiResponse {
-    choices: Array<{
-        message: {
-            content: string;
-        };
-    }>;
-}
+import { runTask, errorMessage, errorStatus } from '@/app/lib/llm';
+import { evaluationParams, finalizeEvaluation } from '@/app/lib/translation';
 
 // 定义问题类型接口
 interface Issue {
@@ -45,147 +29,28 @@ interface SegmentFeedback {
 }
 
 export async function POST(request: Request) {
+    const { originalText, translatedText } = await request.json();
+
+    // 验证输入
+    if (!originalText || !translatedText) {
+        return NextResponse.json(
+            { error: '原文和译文都是必需的' },
+            { status: 400 }
+        );
+    }
+
     try {
-        const { originalText, translatedText } = await request.json();
+        const { text } = await runTask(evaluationParams(originalText, translatedText));
+        const evaluationResult = finalizeEvaluation(text);
 
-        // 验证输入
-        if (!originalText || !translatedText) {
-            return NextResponse.json(
-                { error: '原文和译文都是必需的' },
-                { status: 400 }
-            );
-        }
-
-        if (!API_KEY) {
-            return NextResponse.json({ error: 'API 密钥未配置' }, { status: 500 });
-        }
-
-        // 构建评估提示词
-        const prompt = `
-你是专业的翻译质量评估专家，请对以下翻译进行质量评估：
-
-原文：
-\`\`\`
-${originalText}
-\`\`\`
-
-请你首先阅读上面的原文，制订一个评估翻译质量的策略，然后对比下面的译文：
-
-译文：
-\`\`\`
-${translatedText}
-\`\`\`
-
-请从以下几个方面进行评估：
-1. 准确性：译文是否准确传达了原文的意思
-2. 流畅性：译文是否符合中文表达习惯
-3. 术语使用：专业术语的翻译是否准确
-4. 风格一致性：译文是否保持了原文的风格
-
-请按照以下格式返回评估结果：
-{
-    "score": 评分（0-100分）,
-    "comments": [
-        "具体评价1",
-        "具体评价2",
-        ...
-    ],
-    "segmentScores": [
-        段落1评分,
-        段落2评分,
-        ...
-    ],
-    "segmentFeedbacks": [
-        {
-            "segmentIndex": 段落索引,
-            "issues": [
-                {
-                    "type": "问题类型",
-                    "description": "问题描述",
-                    "originalText": "原文片段",
-                    "translatedText": "译文片段",
-                    "suggestion": "建议的翻译结果（直接输出修改后的文本，不要包含'改为'等指示词）",
-                    "start": 起始位置,
-                    "end": 结束位置,
-                    "reason": "修改理由"
-                }
-            ]
-        }
-    ]
-}
-
-请确保返回的是有效的JSON格式。
-`;
-
-        const messages: Message[] = [
-            { role: 'system', content: '你是一个专业的翻译质量评估专家。请严格按照要求的JSON格式返回评估结果。' },
-            { role: 'user', content: prompt }
-        ];
-
-        // 调用 API
-        const response = await fetch(API_URL + '/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${API_KEY}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                model: MODEL,
-                messages,
-                temperature: 0.3, // 降低随机性，使评估更稳定
-            }),
+        return NextResponse.json({
+            ...evaluationResult,
+            originalSegments: segmentText(originalText),
+            translatedSegments: segmentText(translatedText)
         });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            return NextResponse.json({
-                error: `API 请求失败: ${errorData.error?.message || response.statusText}`
-            }, { status: response.status });
-        }
-
-        const data: ApiResponse = await response.json();
-        const result = data.choices[0]?.message?.content || '';
-
-        try {
-            // 处理可能存在的 Markdown 代码块标记
-            let jsonContent = result;
-            if (result.includes('```json')) {
-                jsonContent = result.split('```json')[1].split('```')[0].trim();
-            } else if (result.includes('```')) {
-                jsonContent = result.split('```')[1].split('```')[0].trim();
-            }
-            
-            console.log('processedContent:', jsonContent);
-            const evaluationResult = JSON.parse(jsonContent);
-            
-            // 验证必要的字段
-            if (!evaluationResult.score || !evaluationResult.comments || !evaluationResult.segmentScores) {
-                throw new Error('评估结果缺少必要字段');
-            }
-            
-            // 分割文本为段落
-            const originalSegments = segmentText(originalText);
-            const translatedSegments = segmentText(translatedText);
-
-            return NextResponse.json({
-                ...evaluationResult,
-                originalSegments,
-                translatedSegments
-            });
-        } catch (error) {
-            console.error('解析评估结果失败:', error);
-            console.error('原始内容:', result);
-            return NextResponse.json(
-                { error: `解析评估结果失败: ${error instanceof Error ? error.message : String(error)}` },
-                { status: 500 }
-            );
-        }
     } catch (error) {
         console.error('翻译质量评估失败:', error);
-        return NextResponse.json(
-            { error: '处理请求时出错' },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: errorMessage(error) }, { status: errorStatus(error) });
     }
 }
 

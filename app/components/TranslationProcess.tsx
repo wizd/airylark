@@ -6,20 +6,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   TranslationPlan,
-  createTranslationPlan as apiCreateTranslationPlan,
-  translateSegment as apiTranslateSegment,
-  reviewTranslation as apiReviewTranslation,
-  createTranslationPlanStream as apiCreateTranslationPlanStream,
-  translateSegmentStream as apiTranslateSegmentStream,
-  reviewTranslationStream as apiReviewTranslationStream,
-  tryParseJson
+  createTranslationPlan,
+  translateSegment,
+  reviewTranslation
 } from "../services/translationApi";
 import TranslationThinking from "./TranslationThinking";
 import ExpertEditor from "./ExpertEditor"; // 导入外部的 ExpertEditor 组件
-
-// 获取环境变量配置
-// 注意：在Next.js中，浏览器可访问的环境变量需要以NEXT_PUBLIC_开头
-const useStreaming = process.env.NEXT_PUBLIC_USE_STREAMING === 'true';
 
 // 专家编辑器组件接口（保留以便类型检查）
 interface ExpertEditorProps {
@@ -230,69 +222,18 @@ export default function TranslationProcess({
           keyTerms: {}
         });
 
-        let planResult: string;
-        
-        if (useStreaming) {
-          // 使用流式API创建翻译规划
-          planResult = await apiCreateTranslationPlanStream(
-            sourceText,
-            (partialResult) => {
-              // 尝试解析部分结果，使用增强的JSON解析
-              const parsedPlan = tryParseJson<TranslationPlan>(partialResult);
-              if (parsedPlan) {
-                setPlanningThinkingData({
-                  contentType: parsedPlan.contentType || "分析中...",
-                  style: parsedPlan.style || "分析中...",
-                  specializedKnowledge: parsedPlan.specializedKnowledge || [
-                    "分析中..."
-                  ],
-                  keyTerms: parsedPlan.keyTerms || {}
-                });
-              }
-            }
-          );
-        } else {
-          // 使用非流式API创建翻译规划
-          planResult = await apiCreateTranslationPlan(sourceText);
-        }
+        const { result: plan } = await createTranslationPlan(sourceText);
+        setTranslationPlan(plan);
+        setPlanningThinkingData(plan);
 
-        // 使用增强的JSON解析处理最终结果
-        const parsedPlan = tryParseJson<TranslationPlan>(planResult);
-        if (parsedPlan) {
-          setTranslationPlan(parsedPlan);
+        // 分割原文为段落
+        const segments = sourceText
+          .split(/\n\s*\n/)
+          .filter((segment) => segment.trim().length > 0);
+        setOriginalSegments(segments);
 
-          // 分割原文为段落
-          const segments = sourceText
-            .split(/\n\s*\n/)
-            .filter((segment) => segment.trim().length > 0);
-          setOriginalSegments(segments);
-
-          // 更新步骤
-          setCurrentStep("translating");
-        } else {
-          // 如果最终结果仍然无法解析，尝试提取JSON部分
-          const jsonMatch = planResult.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            try {
-              const extractedJson = jsonMatch[0];
-              const extractedPlan = JSON.parse(extractedJson);
-              setTranslationPlan(extractedPlan);
-
-              // 分割原文为段落
-              const segments = sourceText
-                .split(/\n\s*\n/)
-                .filter((segment) => segment.trim().length > 0);
-              setOriginalSegments(segments);
-
-              // 更新步骤
-              setCurrentStep("translating");
-            } catch (extractError) {
-              setError(`无法提取有效的JSON: ${extractError}`);
-            }
-          } else {
-            setError(`解析翻译规划失败: 无法识别JSON格式`);
-          }
-        }
+        // 更新步骤
+        setCurrentStep("translating");
       } catch (err) {
         setError(
           `创建翻译规划失败: ${
@@ -312,7 +253,6 @@ export default function TranslationProcess({
       setError(null);
       try {
         const translatedResults = [];
-        const thinkingData = [];
 
         // 逐段翻译
         for (let i = 0; i < originalSegments.length; i++) {
@@ -327,39 +267,19 @@ export default function TranslationProcess({
           });
 
           try {
-            let translationResult: string;
-            
-            if (useStreaming) {
-              // 使用流式API翻译段落
-              translationResult = await apiTranslateSegmentStream(
-                originalSegments[i],
-                translationPlan,
-                (partialResult) => {
-                  // 更新思考数据，显示部分翻译结果
-                  setTranslatingThinkingData((prevData) => ({
-                    ...prevData,
-                    currentTranslation: partialResult
-                  }));
-                }
-              );
-            } else {
-              // 使用非流式API翻译段落
-              translationResult = await apiTranslateSegment(
-                originalSegments[i],
-                translationPlan
-              );
-            }
-
-            // 提取思考过程和翻译结果
-            const resultParts = translationResult.split("===TRANSLATION===");
-            if (resultParts.length === 2) {
-              thinkingData.push(resultParts[0].trim());
-              translatedResults.push(resultParts[1].trim());
-            } else {
-              // 如果没有特定格式，直接使用结果
-              thinkingData.push("");
-              translatedResults.push(translationResult.trim());
-            }
+            const { result } = await translateSegment(
+              originalSegments[i],
+              translationPlan,
+              sourceText,
+              (progress) => {
+                // 显示部分翻译结果
+                setTranslatingThinkingData((prevData) => ({
+                  ...prevData,
+                  currentTranslation: progress.text || "翻译中..."
+                }));
+              }
+            );
+            translatedResults.push(result.trim());
           } catch (segmentError) {
             setError(
               `翻译段落 ${i + 1} 失败: ${
@@ -369,7 +289,6 @@ export default function TranslationProcess({
               }`
             );
             // 添加错误占位符
-            thinkingData.push("");
             translatedResults.push(`[翻译错误: 段落 ${i + 1}]`);
           }
         }
@@ -411,55 +330,26 @@ export default function TranslationProcess({
           improvements: []
         });
 
-        let reviewResult: string;
-        
-        if (useStreaming) {
-          // 使用流式API审校译文
-          reviewResult = await apiReviewTranslationStream(
-            combinedTranslation,
-            translationPlan,
-            (partialResult) => {
-              // 更新思考数据，显示部分审校结果
-              const resultParts = partialResult.split("===FINAL_TRANSLATION===");
-              if (resultParts.length === 2) {
-                setReviewingThinkingData({
-                  reviewNotes: [resultParts[0].trim()],
-                  improvements: []
-                });
-                setFinalTranslation(resultParts[1].trim());
-              } else {
-                // 如果还没有分隔符，显示全部内容为审校笔记
-                setReviewingThinkingData({
-                  reviewNotes: [partialResult.trim()],
-                  improvements: []
-                });
-              }
+        const { result: review } = await reviewTranslation(
+          combinedTranslation,
+          translationPlan,
+          sourceText,
+          (progress) => {
+            // 流式显示模型的审校思考摘要
+            if (progress.thinking.trim()) {
+              setReviewingThinkingData({
+                reviewNotes: [progress.thinking.trim()],
+                improvements: []
+              });
             }
-          );
-        } else {
-          // 使用非流式API审校译文
-          reviewResult = await apiReviewTranslation(
-            combinedTranslation,
-            translationPlan
-          );
-        }
+          }
+        );
 
-        // 提取思考过程和最终译文
-        const resultParts = reviewResult.split("===FINAL_TRANSLATION===");
-        if (resultParts.length === 2) {
-          setReviewingThinkingData({
-            reviewNotes: [resultParts[0].trim()],
-            improvements: []
-          });
-          setFinalTranslation(resultParts[1].trim());
-        } else {
-          // 如果没有特定格式，直接使用结果
-          setReviewingThinkingData({
-            reviewNotes: [],
-            improvements: []
-          });
-          setFinalTranslation(reviewResult.trim());
-        }
+        setReviewingThinkingData({
+          reviewNotes: review.reviewNotes,
+          improvements: review.improvements
+        });
+        setFinalTranslation(review.finalTranslation.trim());
 
         // 更新步骤
         setCurrentStep("completed");
