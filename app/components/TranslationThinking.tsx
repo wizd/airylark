@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/24/outline";
 
 // 定义各个步骤的数据类型
@@ -39,14 +39,20 @@ export default function TranslationThinking({
   data,
   autoCollapse = true
 }: TranslationThinkingProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(
+    !(autoCollapse && step === "completed")
+  );
+  const [prevStep, setPrevStep] = useState(step);
+  const [prevAutoCollapse, setPrevAutoCollapse] = useState(autoCollapse);
 
   // 当翻译完成时自动折叠
-  useEffect(() => {
+  if (step !== prevStep || autoCollapse !== prevAutoCollapse) {
+    setPrevStep(step);
+    setPrevAutoCollapse(autoCollapse);
     if (autoCollapse && step === "completed") {
       setIsExpanded(false);
     }
-  }, [step, autoCollapse]);
+  }
 
   const getStepTitle = () => {
     switch (step) {

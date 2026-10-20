@@ -11,6 +11,17 @@ interface ExpertEditorProps {
   onCancel: () => void;
 }
 
+// 调整文本框高度的函数
+const adjustTextareaHeight = (textarea: HTMLTextAreaElement) => {
+  if (!textarea) return;
+
+  // 重置高度，以便正确计算新的高度
+  textarea.style.height = "0px";
+  // 设置新的高度，加上一点额外空间以避免滚动条
+  const newHeight = textarea.scrollHeight;
+  textarea.style.height = `${newHeight}px`;
+};
+
 export default function ExpertEditor({
   originalSegments,
   translatedSegments,
@@ -19,25 +30,34 @@ export default function ExpertEditor({
   onCancel
 }: ExpertEditorProps) {
   // 创建可编辑的译文段落状态
-  const [editedSegments, setEditedSegments] = useState<string[]>([]);
+  const [editedSegments, setEditedSegments] = useState<string[]>(() => [
+    ...translatedSegments
+  ]);
   // 创建文本框引用数组
   const textareaRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
   // 跟踪哪些段落处于编辑模式
   const [editingIndices, setEditingIndices] = useState<number[]>([]);
+  // 记录上一次的译文段落，用于在其变化时重置编辑状态
+  const [prevTranslatedSegments, setPrevTranslatedSegments] =
+    useState(translatedSegments);
 
   // 调试输出
   console.log("当前编辑状态:", editingIndices);
 
-  // 初始化编辑状态
-  useEffect(() => {
+  // 译文段落变化时重置编辑状态
+  if (translatedSegments !== prevTranslatedSegments) {
+    setPrevTranslatedSegments(translatedSegments);
     setEditedSegments([...translatedSegments]);
+    setEditingIndices([]);
+  }
+
+  // 初始化文本框引用与高度
+  useEffect(() => {
     // 初始化文本框引用数组
     textareaRefs.current = textareaRefs.current.slice(
       0,
       translatedSegments.length
     );
-    // 重置编辑模式状态
-    setEditingIndices([]);
 
     // 在下一个渲染周期调整所有文本框高度
     setTimeout(() => {
@@ -48,17 +68,6 @@ export default function ExpertEditor({
       });
     }, 0);
   }, [translatedSegments]);
-
-  // 调整文本框高度的函数
-  const adjustTextareaHeight = (textarea: HTMLTextAreaElement) => {
-    if (!textarea) return;
-
-    // 重置高度，以便正确计算新的高度
-    textarea.style.height = "0px";
-    // 设置新的高度，加上一点额外空间以避免滚动条
-    const newHeight = textarea.scrollHeight;
-    textarea.style.height = `${newHeight}px`;
-  };
 
   // 监听窗口大小变化，重新调整所有文本框高度
   useEffect(() => {

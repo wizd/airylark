@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_USE_STREAMING=${NEXT_PUBLIC_USE_STREAMING:-false}
     ports:
       - "${PORT}:${PORT}"
     environment:

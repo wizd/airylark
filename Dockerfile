@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 
 # 安装依赖阶段
 FROM base AS deps
@@ -15,6 +15,10 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
+# 客户端环境变量需在构建时注入
+ARG NEXT_PUBLIC_USE_STREAMING
+ENV NEXT_PUBLIC_USE_STREAMING=${NEXT_PUBLIC_USE_STREAMING}
 
 # 构建应用
 RUN npm run build
