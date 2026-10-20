@@ -7,8 +7,9 @@ WORKDIR /app
 # 复制package.json和package-lock.json
 COPY package.json package-lock.json ./
 
-# 安装依赖
-RUN npm ci
+# Coolify 会向每个 stage 注入 ARG NODE_ENV=production。
+# 该变量会让 npm ci 跳过 devDependencies，构建期缺少 Tailwind / TypeScript。
+RUN NODE_ENV=development npm ci --include=dev
 
 # 构建阶段
 FROM base AS builder
